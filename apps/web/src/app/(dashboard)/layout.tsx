@@ -22,8 +22,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
         {slowLoad && (
           <p className="text-zinc-500 text-sm text-center max-w-xs">
-            Сервер прокидається після сну…<br />
-            <span className="text-zinc-600 text-xs">Зазвичай займає до 60 секунд</span>
+            Завантаження…<br />
+            <span className="text-zinc-600 text-xs">Перевірка авторизації</span>
           </p>
         )}
       </div>

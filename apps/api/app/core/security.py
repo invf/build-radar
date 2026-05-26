@@ -33,12 +33,20 @@ def create_refresh_token(subject: str | Any) -> str:
     return jwt.encode(payload, settings.jwt_secret_key, algorithm="HS256")
 
 
-@lru_cache(maxsize=1)
+_jwks_cache: list = []
+_jwks_fetched_at: float = 0.0
+
 def _get_supabase_jwks() -> list:
-    """Fetch Supabase public JWKS keys (cached)."""
+    """Fetch Supabase public JWKS keys, cached for 1 hour."""
+    import time
+    global _jwks_cache, _jwks_fetched_at
+    if _jwks_cache and (time.time() - _jwks_fetched_at) < 3600:
+        return _jwks_cache
     url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
     with httpx.Client(timeout=5) as client:
-        return client.get(url).json().get("keys", [])
+        _jwks_cache = client.get(url).json().get("keys", [])
+        _jwks_fetched_at = time.time()
+    return _jwks_cache
 
 
 def decode_token(token: str) -> dict:
