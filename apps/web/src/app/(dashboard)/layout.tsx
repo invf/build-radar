@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { useAuthStore } from '@/stores/auth'
@@ -8,11 +8,24 @@ import { useAuthStore } from '@/stores/auth'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuthStore()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [slowLoad, setSlowLoad] = useState(false)
+
+  useEffect(() => {
+    if (!isLoading) { setSlowLoad(false); return }
+    const t = setTimeout(() => setSlowLoad(true), 8000)
+    return () => clearTimeout(t)
+  }, [isLoading])
 
   if (!user && isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
         <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+        {slowLoad && (
+          <p className="text-zinc-500 text-sm text-center max-w-xs">
+            Сервер прокидається після сну…<br />
+            <span className="text-zinc-600 text-xs">Зазвичай займає до 60 секунд</span>
+          </p>
+        )}
       </div>
     )
   }
