@@ -103,6 +103,11 @@ async def health_check():
     return {"status": "ok", "version": settings.app_version, "env": settings.environment}
 
 
+@app.get("/debug/cors")
+async def debug_cors():
+    return {"allowed_origins": settings.get_cors_origins(), "raw": settings.cors_origins}
+
+
 @app.get("/api/v1")
 async def api_root():
     return {
