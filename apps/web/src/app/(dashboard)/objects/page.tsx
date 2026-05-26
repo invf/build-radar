@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ObjectCard } from '@/components/objects/object-card'
 import { FiltersPanel } from '@/components/objects/filters-panel'
+import { AISearchBar } from '@/components/objects/ai-search-bar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { objectsApi } from '@/lib/api/objects'
 import { useFiltersStore } from '@/stores/filters'
@@ -22,10 +23,21 @@ export default function ObjectsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('updated_at')
   const [page, setPage] = useState(1)
+  const [aiQuery, setAiQuery] = useState('')
+  const [intentSummary, setIntentSummary] = useState('')
   const { filters } = useFiltersStore()
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const isAiMode = !!aiQuery
+
+  const { data: aiData, isLoading: aiLoading } = useQuery({
+    queryKey: ['objects-ai', aiQuery, page],
+    queryFn: () => objectsApi.aiSearch(aiQuery, page, 24),
+    enabled: isAiMode,
+    onSuccess: (d) => setIntentSummary(d.intent_summary || ''),
+  })
+
+  const { data: regularData, isLoading: regularLoading } = useQuery({
     queryKey: ['objects', filters, search, sortBy, page],
     queryFn: () => objectsApi.list({
       ...filters,
@@ -35,7 +47,11 @@ export default function ObjectsPage() {
       page,
       page_size: 24,
     }),
+    enabled: !isAiMode,
   })
+
+  const data = isAiMode ? aiData : regularData
+  const isLoading = isAiMode ? aiLoading : regularLoading
 
   const { data: favoritesData } = useQuery({
     queryKey: ['favorites'],
@@ -107,8 +123,16 @@ export default function ObjectsPage() {
         </div>
       </div>
 
+      {/* AI Search */}
+      <AISearchBar
+        onSearch={(q) => { setAiQuery(q); setPage(1) }}
+        onClear={() => { setAiQuery(''); setIntentSummary('') }}
+        isLoading={aiLoading}
+        intentSummary={intentSummary}
+      />
+
       {/* Search + Sort */}
-      <div className="flex items-center gap-3">
+      <div className={cn('flex items-center gap-3', isAiMode && 'opacity-40 pointer-events-none')}>
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input

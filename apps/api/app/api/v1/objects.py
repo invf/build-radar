@@ -25,6 +25,7 @@ from ...schemas.objects import (
     ConstructionObjectListSchema,
     ConstructionObjectDetailSchema,
     PaginatedObjectsResponse,
+    AISearchResponse,
     MapPointSchema,
 )
 from ...schemas.notes import ObjectNoteSchema
@@ -234,6 +235,47 @@ async def search_objects(
         items=[ConstructionObjectListSchema.model_validate(o) for o in objects],
         total=total or 0, page=page, page_size=page_size,
         pages=max(1, -(-total // page_size)) if total else 0,
+    )
+
+
+@router.post("/ai-search", response_model=AISearchResponse)
+async def ai_search_objects(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=100),
+):
+    from ...ai.analyzers import parse_nl_search
+    from pydantic import BaseModel
+
+    query_text: str = body.get("query", "").strip()
+    if not query_text:
+        return AISearchResponse(items=[], total=0, page=1, page_size=page_size, pages=0)
+
+    filters = await parse_nl_search(query_text)
+    intent_summary: str = filters.pop("intent_summary", query_text)
+
+    base_query = select(ConstructionObject)
+    base_query = build_filter_query(base_query, filters)
+
+    total = await db.scalar(select(func.count()).select_from(base_query.subquery()))
+
+    # Always rank by AI score for AI search
+    base_query = base_query.order_by(ConstructionObject.ai_score.desc().nullslast())
+    base_query = base_query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(base_query)
+    objects = result.scalars().all()
+
+    return AISearchResponse(
+        items=[ConstructionObjectListSchema.model_validate(o) for o in objects],
+        total=total or 0,
+        page=page,
+        page_size=page_size,
+        pages=max(1, -(-total // page_size)) if total else 0,
+        intent_summary=intent_summary,
+        parsed_filters=filters,
     )
 
 

@@ -41,6 +41,51 @@ OPPORTUNITY_ANALYSIS_PROMPT = """
 Відповідай ЛИШЕ JSON, без пояснень.
 """
 
+NL_SEARCH_PROMPT = """
+Ти — помічник для пошуку будівельних об'єктів в Україні.
+
+Тобі надано запит користувача. Перетвори його на JSON-фільтри для пошуку.
+
+## Допустимі значення:
+- status: planned, approved, under_construction, completed, suspended, cancelled
+- category: residential, commercial, industrial, infrastructure, social, mixed
+- object_type: apartment_building, private_house, office, shopping_center, warehouse, factory, hospital, school, hotel, infrastructure, other
+
+## Запит:
+{query}
+
+## Поверни JSON:
+{{
+    "city": [<назви міст або null>],
+    "oblast": [<назви областей або null>],
+    "status": [<значення зі списку або null>],
+    "category": [<значення зі списку або null>],
+    "object_type": [<значення зі списку або null>],
+    "min_floors": <ціле число або null>,
+    "max_floors": <ціле число або null>,
+    "min_area": <число або null>,
+    "max_area": <число або null>,
+    "has_tenders": <true/false або null>,
+    "has_permits": <true/false або null>,
+    "search": "<ключові слова для текстового пошуку або null>",
+    "intent_summary": "<коротко що шукає користувач, 1 речення>"
+}}
+
+Правила:
+- Якщо поле не згадується — поверни null
+- Масиви без значень поверни як null, не як []
+- Міста: нормалізуй назви (Київ, Харків, Одеса, Львів, Дніпро, Запоріжжя тощо)
+- "будується" / "будівництво" → status: ["under_construction"]
+- "завершені" / "здані" → status: ["completed"]
+- "ЖК" / "житловий" → category: ["residential"]
+- "ТРЦ" / "торговий" → category: ["commercial"], object_type: ["shopping_center"]
+- "офіс" → category: ["commercial"], object_type: ["office"]
+- "завод" / "фабрика" → category: ["industrial"]
+- "школа" / "лікарня" → category: ["social"]
+
+Відповідай ЛИШЕ JSON.
+"""
+
 COMPANY_ANALYSIS_PROMPT = """
 Ти — AI-аналітик будівельної галузі України.
 Проаналізуй компанію та визначити її значущість і репутацію.

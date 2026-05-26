@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 from .client import get_ai_client
-from .prompts import OPPORTUNITY_ANALYSIS_PROMPT
+from .prompts import OPPORTUNITY_ANALYSIS_PROMPT, NL_SEARCH_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,32 @@ async def analyze_object(obj, db) -> dict | None:
     except Exception as e:
         logger.exception(f"AI analysis failed for object {obj.id}: {e}")
         return None
+
+
+async def parse_nl_search(query: str) -> dict:
+    """Convert natural language search query into structured filter dict."""
+    try:
+        client = get_ai_client()
+        prompt = NL_SEARCH_PROMPT.format(query=query)
+        response = await client.complete(prompt, max_tokens=400)
+
+        try:
+            filters = json.loads(response)
+        except json.JSONDecodeError:
+            import re
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                filters = json.loads(json_match.group())
+            else:
+                logger.error(f"Could not parse NL search response: {response}")
+                return {"search": query, "intent_summary": query}
+
+        # Remove null values so they don't override defaults in the caller
+        return {k: v for k, v in filters.items() if v is not None}
+
+    except Exception as e:
+        logger.exception(f"NL search parse failed: {e}")
+        return {"search": query, "intent_summary": query}
 
 
 async def batch_analyze_objects(db, limit: int = 50, min_score_threshold: float = 0.0):

@@ -124,3 +124,8 @@ class PaginatedObjectsResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+class AISearchResponse(PaginatedObjectsResponse):
+    intent_summary: str = ""
+    parsed_filters: dict = Field(default_factory=dict)

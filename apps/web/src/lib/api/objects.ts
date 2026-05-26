@@ -60,4 +60,10 @@ export const objectsApi = {
       params: filters,
       responseType: 'blob',
     }),
+
+  aiSearch: (query: string, page = 1, pageSize = 24) =>
+    apiFetch<PaginatedResponse<ConstructionObject> & { intent_summary: string; parsed_filters: Record<string, unknown> }>(
+      '/objects/ai-search',
+      { method: 'POST', data: { query }, params: { page, page_size: pageSize } }
+    ),
 }
