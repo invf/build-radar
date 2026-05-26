@@ -92,7 +92,7 @@ export default function DashboardPage() {
               title="AI можливостей"
               value={stats?.ai_opportunities_count ?? 0}
               icon={Zap}
-              subtitle="Виявлено ШІ'
+              subtitle="Виявлено ШІ"
               variant="purple"
             />
           </>
