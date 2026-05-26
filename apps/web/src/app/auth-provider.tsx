@@ -20,7 +20,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
+    // Fire-and-forget ping to wake Render before the real API call
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`).catch(() => {})
+
     const loadUser = async () => {
+      const hardStop = setTimeout(() => {
+        console.warn('[AuthProvider] loadUser timed out — stopping spinner')
+        setLoading(false)
+      }, 12000)
+
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
@@ -36,6 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setLoading(false)
         }
+      } finally {
+        clearTimeout(hardStop)
       }
     }
 
