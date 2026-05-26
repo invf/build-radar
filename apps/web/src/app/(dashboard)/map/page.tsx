@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { FiltersPanel } from '@/components/objects/filters-panel'
@@ -13,7 +14,7 @@ const MapClient = dynamic(
   }
 )
 
-export default function MapPage() {
+function MapPageInner() {
   const searchParams = useSearchParams()
   const focusObjectId = searchParams.get('object') || undefined
 
@@ -33,5 +34,13 @@ export default function MapPage() {
         <MapClient focusObjectId={focusObjectId} height="calc(100vh - 200px)" />
       </div>
     </div>
+  )
+}
+
+export default function MapPage() {
+  return (
+    <Suspense>
+      <MapPageInner />
+    </Suspense>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -11,7 +12,7 @@ import { ObjectCard } from '@/components/objects/object-card'
 import { objectsApi } from '@/lib/api/objects'
 import { Badge } from '@/components/ui/badge'
 
-export default function SearchPage() {
+function SearchPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const initialQuery = searchParams.get('q') || ''
@@ -157,5 +158,13 @@ export default function SearchPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchPageInner />
+    </Suspense>
   )
 }
