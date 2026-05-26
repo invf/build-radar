@@ -30,10 +30,11 @@ export default function ObjectsPage() {
 
   const isAiMode = !!aiQuery
 
-  const { data: aiData, isLoading: aiLoading, isFetching: aiFetching } = useQuery({
+  const { data: aiData, isLoading: aiLoading, isFetching: aiFetching, error: aiError } = useQuery({
     queryKey: ['objects-ai', aiQuery, page],
     queryFn: () => objectsApi.aiSearch(aiQuery, page, 24),
     enabled: isAiMode,
+    retry: 1,
   })
 
   const aiSearching = isAiMode && (aiLoading || aiFetching)
@@ -166,6 +167,13 @@ export default function ObjectsPage() {
 
       {/* Filters */}
       <FiltersPanel />
+
+      {/* AI error */}
+      {aiError && isAiMode && !aiSearching && (
+        <div className="rounded-lg border border-red-900/50 bg-red-900/10 px-4 py-3 text-sm text-red-400">
+          ШІ-пошук не вдався: {(aiError as Error).message}. Перевір чи встановлені AI ключі на Render.
+        </div>
+      )}
 
       {/* AI searching overlay */}
       {aiSearching && (

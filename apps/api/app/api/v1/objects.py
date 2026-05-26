@@ -4,7 +4,8 @@ import io
 import uuid
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, exists, text
@@ -238,18 +239,21 @@ async def search_objects(
     )
 
 
+class AISearchRequest(BaseModel):
+    query: str
+
+
 @router.post("/ai-search", response_model=AISearchResponse)
 async def ai_search_objects(
-    body: dict,
+    body: AISearchRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=100),
 ):
     from ...ai.analyzers import parse_nl_search
-    from pydantic import BaseModel
 
-    query_text: str = body.get("query", "").strip()
+    query_text = body.query.strip()
     if not query_text:
         return AISearchResponse(items=[], total=0, page=1, page_size=page_size, pages=0)
 
