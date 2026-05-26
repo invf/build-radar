@@ -11,6 +11,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
+from . import models  # noqa: F401 — registers all ORM mappers before first query
 from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers
 
 # Configure logging
