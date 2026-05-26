@@ -39,7 +39,7 @@ export function TopCitiesChart({ data }: TopCitiesChartProps) {
             borderRadius: '8px',
             color: '#fafafa',
           }}
-          formatter={(value: number) => [value.toLocaleString('uk-UA'), 'Об\'єктів']}
+          formatter={(value) => [Number(value).toLocaleString('uk-UA'), 'Об\'єктів']}
           cursor={{ fill: 'rgba(59,130,246,0.05)' }}
         />
         <Bar dataKey="count" fill="#2563eb" radius={[0, 4, 4, 0]} maxBarSize={20} />

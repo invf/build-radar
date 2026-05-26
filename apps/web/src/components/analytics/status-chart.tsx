@@ -56,7 +56,7 @@ export function StatusChart({ data }: StatusChartProps) {
             borderRadius: '8px',
             color: '#fafafa',
           }}
-          formatter={(value: number) => [value.toLocaleString('uk-UA'), '']}
+          formatter={(value) => [Number(value).toLocaleString('uk-UA'), '']}
         />
         <Legend
           formatter={(value) => (
