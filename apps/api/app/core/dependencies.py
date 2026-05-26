@@ -1,3 +1,6 @@
+import uuid
+import logging
+from datetime import datetime, timezone
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +10,7 @@ from .database import get_db
 from .security import decode_token
 from ..models.user import User, UserRole
 
+logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer()
 
 
@@ -27,11 +31,38 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    try:
+        result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+        user = result.scalar_one_or_none()
+    except Exception as exc:
+        logger.exception("DB error in get_current_user: %s", exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database error")
 
     if user is None:
-        raise credentials_exception
+        # First login — auto-provision row from Supabase JWT payload
+        email: str = payload.get("email", "")
+        if not email:
+            raise credentials_exception
+        user_metadata = payload.get("user_metadata") or {}
+        user = User(
+            id=uuid.UUID(user_id),
+            email=email,
+            full_name=user_metadata.get("full_name") or user_metadata.get("name"),
+            avatar_url=user_metadata.get("avatar_url"),
+            role=UserRole.viewer,
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+            logger.info("Auto-provisioned user %s (%s)", user_id, email)
+        except Exception as exc:
+            await db.rollback()
+            logger.exception("Failed to auto-provision user: %s", exc)
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database error")
+
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
 

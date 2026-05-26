@@ -108,6 +108,19 @@ async def debug_cors():
     return {"allowed_origins": settings.get_cors_origins(), "raw": settings.cors_origins}
 
 
+@app.get("/debug/db")
+async def debug_db():
+    from .core.database import engine
+    from sqlalchemy import text
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            row = result.fetchone()
+        return {"db": "ok", "result": row[0]}
+    except Exception as exc:
+        return {"db": "error", "detail": str(exc)}
+
+
 @app.get("/api/v1")
 async def api_root():
     return {
