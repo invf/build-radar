@@ -1,0 +1,15 @@
+{
+  "name": "buildradar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BuildRadar — Ukrainian Construction Intelligence Platform",
+  "scripts": {
+    "dev": "cd apps/web && npm run dev",
+    "dev:api": "cd apps/api && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:worker": "cd apps/api && celery -A app.tasks.celery_app worker --loglevel=info",
+    "dev:beat": "cd apps/api && celery -A app.tasks.celery_app beat --loglevel=info",
+    "build": "cd apps/web && npm run build",
+    "lint": "cd apps/web && npm run lint",
+    "type-check": "cd apps/web && npx tsc --noEmit"
+  }
+}
