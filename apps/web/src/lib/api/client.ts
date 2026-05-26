@@ -7,7 +7,7 @@ function createApiClient(): AxiosInstance {
   const client = axios.create({
     baseURL: `${API_URL}/api/v1`,
     headers: { 'Content-Type': 'application/json' },
-    timeout: 10000,
+    timeout: 30000,
   })
 
   client.interceptors.request.use(async (config) => {

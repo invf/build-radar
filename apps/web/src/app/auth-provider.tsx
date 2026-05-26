@@ -21,7 +21,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
 
     const loadUser = async () => {
-      setLoading(true)
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
@@ -35,7 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isAuthError(error)) {
           logout()
         } else {
-          // Backend error (5xx) — don't logout, but stop the spinner
           setLoading(false)
         }
       }
