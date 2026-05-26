@@ -1,11 +1,14 @@
 from __future__ import annotations
 import csv
 import io
+import logging
 import uuid
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, exists, text
@@ -42,9 +45,11 @@ def build_filter_query(query, params: dict):
     if params.get("category"):
         query = query.where(ConstructionObject.category.in_(params["category"]))
     if params.get("city"):
-        query = query.where(ConstructionObject.city.in_(params["city"]))
+        city_lower = [c.lower() for c in params["city"]]
+        query = query.where(func.lower(ConstructionObject.city).in_(city_lower))
     if params.get("oblast"):
-        query = query.where(ConstructionObject.oblast.in_(params["oblast"]))
+        oblast_lower = [o.lower() for o in params["oblast"]]
+        query = query.where(func.lower(ConstructionObject.oblast).in_(oblast_lower))
     if params.get("min_floors"):
         query = query.where(ConstructionObject.floors >= params["min_floors"])
     if params.get("max_floors"):
@@ -259,17 +264,45 @@ async def ai_search_objects(
 
     filters = await parse_nl_search(query_text)
     intent_summary: str = filters.pop("intent_summary", query_text)
+    logger.info("AI search parsed filters: %s", filters)
 
-    base_query = select(ConstructionObject)
-    base_query = build_filter_query(base_query, filters)
+    filtered_query = build_filter_query(select(ConstructionObject), filters)
+    total = await db.scalar(select(func.count()).select_from(filtered_query.subquery()))
 
-    total = await db.scalar(select(func.count()).select_from(base_query.subquery()))
+    # Hybrid: if DB has few results, fetch live from ЄДЕССБ and save new objects
+    if (total or 0) < 10 and page == 1:
+        try:
+            from ...parsers.edesb import EdesbParser
+            cities: list[str] = filters.get("city") or []
+            city_param = cities[0] if cities else None
+            async with EdesbParser() as edesb:
+                live = await edesb.live_search(city=city_param, limit=50)
+                saved = 0
+                for parsed_obj in live:
+                    try:
+                        created = await edesb._upsert_object(db, parsed_obj)
+                        if created:
+                            saved += 1
+                    except Exception:
+                        pass
+            if saved > 0:
+                logger.info("Hybrid search: saved %d new objects from ЄДЕССБ", saved)
+                total = await db.scalar(
+                    select(func.count()).select_from(
+                        build_filter_query(select(ConstructionObject), filters).subquery()
+                    )
+                )
+                filtered_query = build_filter_query(select(ConstructionObject), filters)
+        except Exception as exc:
+            logger.warning("ЄДЕССБ live search skipped: %s", exc)
 
-    # Always rank by AI score for AI search
-    base_query = base_query.order_by(ConstructionObject.ai_score.desc().nullslast())
-    base_query = base_query.offset((page - 1) * page_size).limit(page_size)
-
-    result = await db.execute(base_query)
+    ordered_query = (
+        filtered_query
+        .order_by(ConstructionObject.ai_score.desc().nullslast())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    result = await db.execute(ordered_query)
     objects = result.scalars().all()
 
     return AISearchResponse(

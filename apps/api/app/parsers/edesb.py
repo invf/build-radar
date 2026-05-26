@@ -39,6 +39,29 @@ class EdesbParser(BaseParser):
         "80": "kyiv_city",
     }
 
+    async def live_search(
+        self,
+        city: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[ParsedObject]:
+        """Fetch a page of objects filtered by city/status for hybrid AI search."""
+        params: dict = {"per_page": min(limit, self.page_size), "status": status or "issued"}
+        if city:
+            params["city"] = city
+        try:
+            data = await self.fetch(f"{self.base_url}/permits", params=params)
+            items = data.get("data", data if isinstance(data, list) else [])
+            results: list[ParsedObject] = []
+            for item in items[:limit]:
+                parsed = await self.parse_raw(item)
+                if parsed:
+                    results.append(parsed)
+            return results
+        except Exception as e:
+            self.logger.warning("ЄДЕССБ live search failed: %s", e)
+            return []
+
     async def fetch_objects(self) -> AsyncGenerator[ParsedObject, None]:
         """Fetch construction permits from ЄДЕССБ."""
         page = 1
