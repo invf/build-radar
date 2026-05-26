@@ -24,28 +24,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`).catch(() => {})
 
     const loadUser = async () => {
-      const hardStop = setTimeout(() => {
-        console.warn('[AuthProvider] loadUser timed out — stopping spinner')
-        setLoading(false)
-      }, 12000)
-
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
           logout()
           return
         }
-        const user = await usersApi.getMe()
-        setUser(user)
+
+        // Populate immediately from JWT — no round-trip to Render needed
+        const su = session.user
+        setUser({
+          id: su.id,
+          email: su.email ?? '',
+          full_name: su.user_metadata?.full_name ?? su.user_metadata?.name ?? null,
+          avatar_url: su.user_metadata?.avatar_url ?? null,
+          role: 'viewer',
+          is_active: true,
+          created_at: su.created_at ?? new Date().toISOString(),
+        })
+
+        // Refresh with full profile (role, etc.) in background
+        usersApi.getMe().then(setUser).catch(() => {})
       } catch (error) {
         console.error('[AuthProvider] loadUser failed:', error)
-        if (isAuthError(error)) {
-          logout()
-        } else {
-          setLoading(false)
-        }
-      } finally {
-        clearTimeout(hardStop)
+        if (isAuthError(error)) logout()
       }
     }
 
@@ -54,17 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          try {
-            const user = await usersApi.getMe()
-            setUser(user)
-          } catch (error) {
-            if (isAuthError(error)) {
-              logout()
-            } else {
-              setLoading(false)
-            }
-            console.error('[AuthProvider] onAuthStateChange failed:', error)
-          }
+          const su = session.user
+          setUser({
+            id: su.id,
+            email: su.email ?? '',
+            full_name: su.user_metadata?.full_name ?? su.user_metadata?.name ?? null,
+            avatar_url: su.user_metadata?.avatar_url ?? null,
+            role: 'viewer',
+            is_active: true,
+            created_at: su.created_at ?? new Date().toISOString(),
+          })
+          usersApi.getMe().then(setUser).catch(() => {})
         } else if (event === 'SIGNED_OUT') {
           logout()
         }
