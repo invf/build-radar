@@ -6,11 +6,10 @@ import { Topbar } from '@/components/layout/topbar'
 import { useAuthStore } from '@/stores/auth'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
-  // Middleware handles unauthenticated redirects — just wait for user profile to load
-  if (!user) {
+  if (!user && isLoading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />

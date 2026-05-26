@@ -12,7 +12,7 @@ function isAuthError(error: unknown): boolean {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser, logout } = useAuthStore()
+  const { setUser, setLoading, logout } = useAuthStore()
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
 
     const loadUser = async () => {
+      setLoading(true)
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
@@ -30,10 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const user = await usersApi.getMe()
         setUser(user)
       } catch (error) {
+        console.error('[AuthProvider] loadUser failed:', error)
         if (isAuthError(error)) {
           logout()
+        } else {
+          // Backend error (5xx) — don't logout, but stop the spinner
+          setLoading(false)
         }
-        console.error('[AuthProvider] loadUser failed:', error)
       }
     }
 
@@ -48,6 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch (error) {
             if (isAuthError(error)) {
               logout()
+            } else {
+              setLoading(false)
             }
             console.error('[AuthProvider] onAuthStateChange failed:', error)
           }
@@ -58,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
 
     return () => subscription.unsubscribe()
-  }, [setUser, logout])
+  }, [setUser, setLoading, logout])
 
   return <>{children}</>
 }
