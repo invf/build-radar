@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, List, Map as MapIcon, Download, SortAsc } from 'lucide-react'
+import { Search, List, Map as MapIcon, Download, SortAsc, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -30,11 +30,13 @@ export default function ObjectsPage() {
 
   const isAiMode = !!aiQuery
 
-  const { data: aiData, isLoading: aiLoading } = useQuery({
+  const { data: aiData, isLoading: aiLoading, isFetching: aiFetching } = useQuery({
     queryKey: ['objects-ai', aiQuery, page],
     queryFn: () => objectsApi.aiSearch(aiQuery, page, 24),
     enabled: isAiMode,
   })
+
+  const aiSearching = isAiMode && (aiLoading || aiFetching)
 
   useEffect(() => {
     if (aiData?.intent_summary) setIntentSummary(aiData.intent_summary)
@@ -55,6 +57,7 @@ export default function ObjectsPage() {
 
   const data = isAiMode ? aiData : regularData
   const isLoading = isAiMode ? aiLoading : regularLoading
+  const isFetching = isAiMode ? aiFetching : false
 
   const { data: favoritesData } = useQuery({
     queryKey: ['favorites'],
@@ -130,7 +133,7 @@ export default function ObjectsPage() {
       <AISearchBar
         onSearch={(q) => { setAiQuery(q); setPage(1) }}
         onClear={() => { setAiQuery(''); setIntentSummary('') }}
-        isLoading={aiLoading}
+        isLoading={aiSearching}
         intentSummary={intentSummary}
       />
 
@@ -164,14 +167,30 @@ export default function ObjectsPage() {
       {/* Filters */}
       <FiltersPanel />
 
+      {/* AI searching overlay */}
+      {aiSearching && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-full border-2 border-brand-600 border-t-transparent animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-brand-400" />
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-zinc-300 font-medium">ШІ аналізує запит…</p>
+            <p className="text-zinc-500 text-sm mt-1">Це може зайняти кілька секунд</p>
+          </div>
+        </div>
+      )}
+
       {/* Objects grid */}
-      {isLoading ? (
+      {!aiSearching && isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
-      ) : (
+      ) : !aiSearching && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {data?.items.map((obj) => (

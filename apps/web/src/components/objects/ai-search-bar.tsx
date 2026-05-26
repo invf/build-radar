@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Sparkles, Loader2, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils/cn'
 
 interface AISearchBarProps {
   onSearch: (query: string) => void
@@ -24,21 +25,28 @@ export function AISearchBar({ onSearch, onClear, isLoading, intentSummary }: AIS
     <div className="space-y-2">
       <form onSubmit={handleSubmit} className="flex gap-2">
         <div className="relative flex-1">
-          <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-400" />
+          {isLoading
+            ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-400 animate-spin" />
+            : <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-400" />
+          }
           <Input
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="Наприклад: великі ЖК у Харкові що будуються..."
-            className="pl-9 border-brand-800 bg-brand-950/20 focus:border-brand-600"
+            className={cn(
+              'pl-9 border-brand-800 bg-brand-950/20 focus:border-brand-600 transition-all',
+              isLoading && 'border-brand-600 animate-pulse'
+            )}
+            disabled={isLoading}
           />
         </div>
         <Button
           type="submit"
           disabled={value.trim().length < 3 || isLoading}
-          className="bg-brand-600 hover:bg-brand-700 text-white gap-1.5"
+          className="bg-brand-600 hover:bg-brand-700 text-white gap-1.5 min-w-[120px]"
         >
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          ШІ-пошук
+          {isLoading ? 'Шукаю…' : 'ШІ-пошук'}
         </Button>
         {intentSummary && (
           <Button
