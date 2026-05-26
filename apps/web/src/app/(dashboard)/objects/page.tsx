@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Search, List, Map as MapIcon, Download, SortAsc } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -34,8 +34,11 @@ export default function ObjectsPage() {
     queryKey: ['objects-ai', aiQuery, page],
     queryFn: () => objectsApi.aiSearch(aiQuery, page, 24),
     enabled: isAiMode,
-    onSuccess: (d) => setIntentSummary(d.intent_summary || ''),
   })
+
+  useEffect(() => {
+    if (aiData?.intent_summary) setIntentSummary(aiData.intent_summary)
+  }, [aiData?.intent_summary])
 
   const { data: regularData, isLoading: regularLoading } = useQuery({
     queryKey: ['objects', filters, search, sortBy, page],
