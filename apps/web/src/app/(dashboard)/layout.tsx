@@ -1,34 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Topbar } from '@/components/layout/topbar'
 import { useAuthStore } from '@/stores/auth'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuthStore()
+  const { user } = useAuthStore()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [slowLoad, setSlowLoad] = useState(false)
-
-  useEffect(() => {
-    if (!isLoading) { setSlowLoad(false); return }
-    const t = setTimeout(() => setSlowLoad(true), 8000)
-    return () => clearTimeout(t)
-  }, [isLoading])
-
-  if (!user && isLoading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
-        <div className="h-8 w-8 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
-        {slowLoad && (
-          <p className="text-zinc-500 text-sm text-center max-w-xs">
-            Завантаження…<br />
-            <span className="text-zinc-600 text-xs">Перевірка авторизації</span>
-          </p>
-        )}
-      </div>
-    )
-  }
 
   return (
     <div className="flex h-screen bg-zinc-950 overflow-hidden">
