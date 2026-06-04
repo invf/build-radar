@@ -533,7 +533,7 @@ export function SearchPageInner({ initialQ }: { initialQ: string }) {
         <Button
           type="submit"
           className="bg-brand-600 hover:bg-brand-700 text-white h-11 px-6"
-          disabled={query.trim().length < 2 || isSearching}
+          disabled={query.trim().length < 2}
         >
           {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Знайти'}
         </Button>
