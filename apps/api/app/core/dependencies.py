@@ -60,8 +60,17 @@ async def get_current_user(
             logger.info("Auto-provisioned user %s (%s)", user_id, email)
         except Exception as exc:
             await db.rollback()
-            logger.exception("Failed to auto-provision user: %s", exc)
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database error")
+            # Unique email violation: another row with same email exists (e.g. seed data with different UUID).
+            # Fall back to looking up by email so the real Supabase user can still authenticate.
+            try:
+                result = await db.execute(select(User).where(User.email == email))
+                user = result.scalar_one_or_none()
+            except Exception:
+                pass
+            if user is None:
+                logger.exception("Failed to auto-provision user: %s", exc)
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database error")
+            logger.info("Email conflict for %s — reusing existing row %s", user_id, user.id)
 
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
