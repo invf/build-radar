@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import String, Text, Float, DateTime, Enum, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from ..core.database import Base
 
 
@@ -18,6 +18,12 @@ class CompanyRole(str, enum.Enum):
     technical_supervision = "technical_supervision"
     architect = "architect"
     investor = "investor"
+
+
+class RelationshipStatus(str, enum.Enum):
+    active = "active"
+    prospect = "prospect"
+    inactive = "inactive"
 
 
 class Company(Base):
@@ -33,6 +39,12 @@ class Company(Base):
     website: Mapped[Optional[str]] = mapped_column(String(255))
     description: Mapped[Optional[str]] = mapped_column(Text)
     ai_score: Mapped[Optional[float]] = mapped_column(Float)
+    logo_url: Mapped[Optional[str]] = mapped_column(Text)
+    relationship_status: Mapped[Optional[RelationshipStatus]] = mapped_column(
+        Enum(RelationshipStatus, name="relationship_status"), nullable=True
+    )
+    contacts: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    projects: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -56,6 +68,9 @@ class ObjectCompany(Base):
     )
     role: Mapped[CompanyRole] = mapped_column(Enum(CompanyRole, name="company_role"), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+    relationship_status: Mapped[Optional[RelationshipStatus]] = mapped_column(
+        Enum(RelationshipStatus, name="relationship_status"), nullable=True
+    )
 
     # Relationships
     construction_object = relationship("ConstructionObject", back_populates="companies")

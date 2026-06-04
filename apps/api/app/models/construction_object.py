@@ -94,6 +94,14 @@ class ConstructionObject(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     photos: Mapped[Optional[list]] = mapped_column(ARRAY(Text))
 
+    # Participants
+    customer: Mapped[Optional[str]] = mapped_column(Text)
+    general_contractor: Mapped[Optional[str]] = mapped_column(Text)
+    designer: Mapped[Optional[str]] = mapped_column(Text)
+    installer: Mapped[Optional[str]] = mapped_column(Text)
+
+    website: Mapped[Optional[str]] = mapped_column(String(500))
+
     # Data source tracking
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     source_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)

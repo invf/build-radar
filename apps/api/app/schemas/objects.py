@@ -41,9 +41,16 @@ class ConstructionObjectListSchema(BaseModel):
     building_area: Optional[float] = None
     ai_score: Optional[float] = None
     ai_summary: Optional[str] = None
+    description: Optional[str] = None
+    photos: Optional[list[str]] = Field(default_factory=list)
+    customer: Optional[str] = None
+    general_contractor: Optional[str] = None
+    designer: Optional[str] = None
+    installer: Optional[str] = None
+    website: Optional[str] = None
     source: str
-    permits: list = Field(default_factory=list)
-    tenders: list = Field(default_factory=list)
+    permits: list[PermitSchema] = Field(default_factory=list)
+    tenders: list[TenderSchema] = Field(default_factory=list)
     notes_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -94,6 +101,57 @@ class MapPointSchema(BaseModel):
     lng: float
     status: str
     name: str
+
+
+class ObjectUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=500)
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    oblast: Optional[str] = Field(None, max_length=100)
+    district: Optional[str] = Field(None, max_length=100)
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    status: Optional[ObjectStatus] = None
+    category: Optional[ObjectCategory] = None
+    object_type: Optional[ObjectType] = None
+    floors: Optional[int] = None
+    building_area: Optional[float] = None
+    land_area: Optional[float] = None
+    construction_stage: Optional[str] = Field(None, max_length=255)
+    planned_completion: Optional[datetime] = None
+    description: Optional[str] = None
+    photos: Optional[list[str]] = None
+    customer: Optional[str] = None
+    general_contractor: Optional[str] = None
+    designer: Optional[str] = None
+    installer: Optional[str] = None
+    website: Optional[str] = Field(None, max_length=500)
+
+
+class ObjectCreateSchema(BaseModel):
+    name: str = Field(..., min_length=1, max_length=500)
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    oblast: Optional[str] = Field(None, max_length=100)
+    district: Optional[str] = Field(None, max_length=100)
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    status: ObjectStatus = ObjectStatus.planned
+    category: Optional[ObjectCategory] = None
+    object_type: Optional[ObjectType] = None
+    floors: Optional[int] = None
+    building_area: Optional[float] = None
+    land_area: Optional[float] = None
+    construction_stage: Optional[str] = Field(None, max_length=255)
+    planned_completion: Optional[datetime] = None
+    description: Optional[str] = None
+    photos: list[str] = Field(default_factory=list)
+    customer: Optional[str] = None
+    general_contractor: Optional[str] = None
+    designer: Optional[str] = None
+    installer: Optional[str] = None
+    website: Optional[str] = Field(None, max_length=500)
+    source: str = "manual"
 
 
 class ObjectsFilterParams(BaseModel):

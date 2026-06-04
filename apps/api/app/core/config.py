@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
 
+    # External data sources
+    opendatabot_api_key: str = ""  # https://opendatabot.ua — free tier requires registration
+
     # Email (SMTP)
     smtp_host: str = ""
     smtp_port: int = 587
