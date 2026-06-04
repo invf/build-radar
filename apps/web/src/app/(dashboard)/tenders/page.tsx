@@ -304,8 +304,15 @@ function ProzorroSearchTab() {
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-            ?? 'Не вдалось отримати результати від Prozorro. Спробуйте пізніше.'}
+          <span>
+            {(() => {
+              const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
+              const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+              if (status === 401 || status === 403) return 'Сесія закінчилась — оновіть сторінку (F5) і увійдіть знову.'
+              if (detail) return detail
+              return 'Не вдалось виконати запит. Спробуйте пізніше.'
+            })()}
+          </span>
         </div>
       )}
 
