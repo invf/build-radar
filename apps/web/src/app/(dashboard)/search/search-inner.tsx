@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, Building, FileText, Building2, MapPin,
   Calendar, Plus, ArrowRight, Sparkles, Globe, Phone, Mail,
-  ExternalLink, ChevronDown, ChevronUp, User, Tag, Layers,
+  ExternalLink, ChevronDown, ChevronUp, User, Tag, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
@@ -516,19 +516,35 @@ export function SearchPageInner({ initialQ }: { initialQ: string }) {
             placeholder="Введіть назву, адресу, ЄДРПОУ... (будь-яка мова)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-10 h-11 text-base"
+            className="pl-10 pr-20 h-11 text-base"
             autoFocus
           />
-          {normalization && query && (
-            <button
-              type="button"
-              onClick={() => { setQuery(normalization.text); setSubmittedQuery(normalization.text) }}
-              className="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] text-brand-400 hover:text-brand-300 whitespace-nowrap hidden sm:block"
-              title={`Шукати як: ${normalization.text}`}
-            >
-              {normalization.text}?
-            </button>
-          )}
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {normalization && query && (
+              <button
+                type="button"
+                onClick={() => { setQuery(normalization.text); setSubmittedQuery(normalization.text) }}
+                className="text-[11px] text-brand-400 hover:text-brand-300 whitespace-nowrap hidden sm:block px-1"
+                title={`Шукати як: ${normalization.text}`}
+              >
+                {normalization.text}?
+              </button>
+            )}
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('')
+                  setSubmittedQuery('')
+                  router.push('/search', { scroll: false })
+                }}
+                className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                title="Очистити пошук"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
         <Button
           type="submit"
