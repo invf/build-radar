@@ -15,6 +15,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setUser, setLoading, logout } = useAuthStore()
 
   useEffect(() => {
+    // Rehydrate auth state from localStorage after mount (prevents SSR mismatch)
+    useAuthStore.persist.rehydrate()
+
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

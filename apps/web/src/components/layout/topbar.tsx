@@ -1,11 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Bell, Search, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { GlobalSearchModal } from '@/components/search/global-search-modal'
 
 interface TopbarProps {
   onMenuClick?: () => void
@@ -14,47 +14,54 @@ interface TopbarProps {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { user } = useAuthStore()
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+  // Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
     }
-  }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm px-4 md:px-6">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
-        <Menu className="h-5 w-5" />
-      </Button>
-
-      {/* Global Search */}
-      <form onSubmit={handleSearch} className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-          <Input
-            type="search"
-            placeholder="Пошук об'єктів, компаній, адрес..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-zinc-900 border-zinc-800 text-sm"
-          />
-        </div>
-      </form>
-
-      <div className="flex items-center gap-2 ml-auto">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" onClick={() => router.push('/alerts')}>
-          <Bell className="h-5 w-5 text-zinc-400" />
+    <>
+      <header className="flex h-14 shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm px-4 md:px-6">
+        <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
+          <Menu className="h-5 w-5" />
         </Button>
 
-        {/* User avatar */}
-        <div className="h-8 w-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold text-white cursor-pointer"
-          onClick={() => router.push('/settings')}>
-          {user?.full_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+        {/* Search trigger */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex flex-1 max-w-md items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-500 hover:border-zinc-700 hover:text-zinc-400 transition-colors"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Пошук об&apos;єктів, компаній...</span>
+          <kbd className="hidden md:inline-flex items-center gap-1 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-600">
+            Ctrl K
+          </kbd>
+        </button>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/alerts')}>
+            <Bell className="h-5 w-5 text-zinc-400" />
+          </Button>
+
+          <div
+            className="h-8 w-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold text-white cursor-pointer"
+            onClick={() => router.push('/settings')}
+          >
+            {user?.full_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </>
   )
 }

@@ -19,6 +19,8 @@ import {
   Shield,
   Bookmark,
   Zap,
+  ClipboardList,
+  Factory,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useAuthStore } from '@/stores/auth'
@@ -28,9 +30,11 @@ import { useState } from 'react'
 
 const navigation = [
   { name: 'Дашборд', href: '/', icon: LayoutDashboard },
+  { name: 'Замовлення', href: '/orders', icon: ClipboardList },
   { name: 'Об\'єкти', href: '/objects', icon: Building2 },
-  { name: 'Карта', href: '/map', icon: Map },
+  { name: 'Мапа', href: '/map', icon: Map },
   { name: 'Компанії', href: '/companies', icon: Building },
+  { name: 'Виробництво', href: '/manufacturers', icon: Factory },
   { name: 'Дозволи', href: '/permits', icon: FileText },
   { name: 'Тендери', href: '/tenders', icon: ShoppingCart },
   { name: 'Пошук', href: '/search', icon: Search },
