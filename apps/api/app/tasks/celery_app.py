@@ -26,22 +26,9 @@ celery_app.conf.update(
     task_soft_time_limit=300,
     task_time_limit=600,
 
+    # Parsers are manual-only — no auto-schedule for edesb/prozorro/data_gov.
     # Scheduled tasks (Celery Beat)
     beat_schedule={
-        # Parser tasks
-        "parse-edesb-every-15min": {
-            "task": "app.tasks.parser_tasks.run_edesb_parser",
-            "schedule": crontab(minute="*/15"),
-        },
-        "parse-prozorro-every-hour": {
-            "task": "app.tasks.parser_tasks.run_prozorro_parser",
-            "schedule": crontab(minute=0),  # Every hour
-        },
-        "parse-data-gov-every-6h": {
-            "task": "app.tasks.parser_tasks.run_data_gov_parser",
-            "schedule": crontab(minute=0, hour="*/6"),
-        },
-
         # AI tasks
         "batch-ai-analysis-daily": {
             "task": "app.tasks.ai_tasks.run_batch_ai_analysis",
