@@ -14,7 +14,42 @@ export interface ObjectsQueryParams extends ObjectFilters {
   sort_order?: 'asc' | 'desc'
 }
 
+export interface ObjectCreatePayload {
+  name: string
+  address?: string
+  city?: string
+  oblast?: string
+  district?: string
+  lat?: number
+  lng?: number
+  status?: string
+  category?: string
+  object_type?: string
+  floors?: number
+  building_area?: number
+  land_area?: number
+  construction_stage?: string
+  planned_completion?: string
+  description?: string
+  photos?: string[]
+  customer?: string
+  general_contractor?: string
+  designer?: string
+  installer?: string
+  website?: string
+  source?: string
+}
+
 export const objectsApi = {
+  create: (data: ObjectCreatePayload) =>
+    apiFetch<ConstructionObject>('/objects', { method: 'POST', data }),
+
+  update: (id: string, data: Partial<ObjectCreatePayload>) =>
+    apiFetch<ConstructionObject>(`/objects/${id}`, { method: 'PATCH', data }),
+
+  delete: (id: string) =>
+    apiFetch<void>(`/objects/${id}`, { method: 'DELETE' }),
+
   list: (params?: ObjectsQueryParams) =>
     apiFetch<PaginatedResponse<ConstructionObject>>('/objects', {
       params,

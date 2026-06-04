@@ -22,6 +22,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'buildradar-auth',
       partialize: (state) => ({ user: state.user }),
+      // Prevent SSR/client mismatch: server renders user=null, client would
+      // immediately read localStorage and differ. Manual rehydrate in AuthProvider.
+      skipHydration: true,
     }
   )
 )

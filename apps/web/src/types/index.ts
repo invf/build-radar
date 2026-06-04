@@ -78,6 +78,11 @@ export interface ConstructionObject {
   planned_completion?: string
   description?: string
   photos?: string[]
+  customer?: string
+  general_contractor?: string
+  designer?: string
+  installer?: string
+  website?: string
   source: string
   source_id?: string
   ai_score?: number
@@ -112,6 +117,34 @@ export type CompanyRole =
   | 'architect'
   | 'investor'
 
+export type RelationshipStatus = 'active' | 'prospect' | 'inactive'
+
+export interface CompanyContact {
+  name: string
+  position: string
+  phone: string
+  email: string
+  telegram: string
+  viber: string
+  notes: string
+  photo_url: string
+}
+
+export interface CompanyProject {
+  object_name: string
+  address?: string
+  queue: string
+  deadline: string
+  customer: string
+  contractor: string
+  installer: string
+  supplier: string
+  designer: string
+  notes: string
+  photos: string[]
+  relationship_status?: RelationshipStatus
+}
+
 export interface Company {
   id: string
   name: string
@@ -123,7 +156,11 @@ export interface Company {
   website?: string
   description?: string
   ai_score?: number
+  logo_url?: string
+  relationship_status?: RelationshipStatus
   objects_count?: number
+  contacts?: CompanyContact[]
+  projects?: CompanyProject[]
   created_at: string
   updated_at: string
 }
@@ -132,6 +169,26 @@ export interface ObjectCompany {
   company: Company
   role: CompanyRole
   is_primary: boolean
+  relationship_status?: RelationshipStatus
+}
+
+export interface CompanyObject {
+  id: string
+  name: string
+  address: string
+  city: string
+  photos: string[]
+  status: string
+  category: string
+  object_type?: string
+  floors?: number
+  building_area?: number
+  description?: string
+  ai_score?: number
+  permits_count?: number
+  tenders_count?: number
+  relationship_status?: RelationshipStatus
+  role?: CompanyRole
 }
 
 // ─── Permits ───────────────────────────────────────────────────────────────────
