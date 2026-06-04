@@ -126,6 +126,8 @@ async def search_prozorro(
     # Fetch enough pages to collect `limit` matching results
     max_fetch_pages = 20  # safety cap — each page = 100 tenders
 
+    prozorro_reachable = False
+
     async with httpx.AsyncClient() as client:
         for page_num in range(max_fetch_pages):
             if len(results) >= limit:
@@ -142,8 +144,18 @@ async def search_prozorro(
 
             try:
                 data = await _fetch(client, f"{_BASE}/tenders", params)
+                prozorro_reachable = True
+            except httpx.TimeoutException:
+                if not prozorro_reachable:
+                    raise HTTPException(status_code=503, detail="Prozorro API не відповідає (timeout). Спробуйте пізніше.")
+                break
+            except httpx.HTTPStatusError as e:
+                if not prozorro_reachable:
+                    raise HTTPException(status_code=503, detail=f"Prozorro повернув помилку {e.response.status_code}. Спробуйте пізніше.")
+                break
             except httpx.HTTPError as e:
-                logger.warning("Prozorro API error on page %d: %s", page_num, e)
+                if not prozorro_reachable:
+                    raise HTTPException(status_code=503, detail="Не вдалось підключитись до Prozorro. Спробуйте пізніше.")
                 break
 
             tenders_refs = data.get("data", [])

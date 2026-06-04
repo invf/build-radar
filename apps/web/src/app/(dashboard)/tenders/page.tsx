@@ -304,7 +304,8 @@ function ProzorroSearchTab() {
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          Не вдалось отримати результати від Prozorro. Спробуйте пізніше.
+          {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+            ?? 'Не вдалось отримати результати від Prozorro. Спробуйте пізніше.'}
         </div>
       )}
 
