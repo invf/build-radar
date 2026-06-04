@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Order, OrderStatus } from '@/stores/orders'
+import { type Order, type OrderStatus } from '@/lib/api/orders'
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   in_progress: '#22c55e',  // зелений
@@ -116,7 +116,7 @@ export function OrdersMapClient({ orders, height = '380px' }: OrdersMapClientPro
         marker.bindPopup(`
           <div style="font-family: system-ui, sans-serif; min-width: 180px;">
             <p style="font-weight: 600; color: #f4f4f5; margin: 0 0 4px; font-size: 13px;">
-              ${order.objectName || '—'}
+              ${order.object_name || '—'}
             </p>
             <p style="color: #a1a1aa; font-size: 12px; margin: 0 0 6px;">
               ${order.customer || '—'}
@@ -126,9 +126,9 @@ export function OrdersMapClient({ orders, height = '380px' }: OrdersMapClientPro
               border: 1px solid ${color}44;
               padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;
             ">${STATUS_LABELS[order.status]}</span>
-            ${order.productionDate ? `
+            ${order.production_date ? `
               <p style="color: #71717a; font-size: 11px; margin: 8px 0 0;">
-                Виготовлення: ${new Date(order.productionDate).toLocaleDateString('uk-UA')}
+                Виготовлення: ${new Date(order.production_date).toLocaleDateString('uk-UA')}
               </p>` : ''}
           </div>
         `, { maxWidth: 260, className: 'buildradar-popup' })

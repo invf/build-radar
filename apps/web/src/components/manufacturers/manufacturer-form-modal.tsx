@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { useManufacturersStore, Manufacturer } from '@/stores/manufacturers'
+import { manufacturersApi, type Manufacturer } from '@/lib/api/manufacturers'
 
 type FormState = {
   name: string
@@ -23,23 +24,16 @@ type FormState = {
   notes: string
 }
 
-const emptyForm: FormState = {
-  name: '',
-  phone: '',
-  email: '',
-  website: '',
-  address: '',
-  notes: '',
-}
+const emptyForm: FormState = { name: '', phone: '', email: '', website: '', address: '', notes: '' }
 
-function manufacturerToForm(m: Manufacturer): FormState {
+function toForm(m: Manufacturer): FormState {
   return {
     name: m.name,
-    phone: m.phone,
-    email: m.email,
-    website: m.website,
-    address: m.address,
-    notes: m.notes,
+    phone: m.phone ?? '',
+    email: m.email ?? '',
+    website: m.website ?? '',
+    address: m.address ?? '',
+    notes: m.notes ?? '',
   }
 }
 
@@ -57,25 +51,33 @@ export function ManufacturerFormModal({
   readOnly = false,
 }: ManufacturerFormModalProps) {
   const isEdit = !!manufacturer
-  const { addManufacturer, updateManufacturer } = useManufacturersStore()
-  const [form, setForm] = useState<FormState>(
-    manufacturer ? manufacturerToForm(manufacturer) : emptyForm
-  )
+  const qc = useQueryClient()
+  const [form, setForm] = useState<FormState>(manufacturer ? toForm(manufacturer) : emptyForm)
+
+  useEffect(() => {
+    if (open) setForm(manufacturer ? toForm(manufacturer) : emptyForm)
+  }, [open, manufacturer])
 
   const field =
     <K extends keyof FormState>(key: K) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value }))
 
+  const mutation = useMutation({
+    mutationFn: () =>
+      isEdit
+        ? manufacturersApi.update(manufacturer!.id, form)
+        : manufacturersApi.create(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['manufacturers'] })
+      onOpenChange(false)
+    },
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || readOnly) return
-    if (isEdit) {
-      updateManufacturer(manufacturer.id, form)
-    } else {
-      addManufacturer(form)
-    }
-    onOpenChange(false)
+    mutation.mutate()
   }
 
   return (
@@ -90,98 +92,50 @@ export function ManufacturerFormModal({
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           {!readOnly && (
             <div className="space-y-1.5">
-              <Label>
-                Назва <span className="text-red-400">*</span>
-              </Label>
-              <Input
-                placeholder="Назва виробника"
-                value={form.name}
-                onChange={field('name')}
-                required
-              />
+              <Label>Назва <span className="text-red-400">*</span></Label>
+              <Input placeholder="Назва виробника" value={form.name} onChange={field('name')} required />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Телефон</Label>
-              <Input
-                placeholder="+38 (0XX) XXX-XX-XX"
-                value={form.phone}
-                onChange={field('phone')}
-                readOnly={readOnly}
-                className={readOnly ? 'opacity-70 cursor-default' : ''}
-              />
+              <Input placeholder="+38 (0XX) XXX-XX-XX" value={form.phone} onChange={field('phone')} readOnly={readOnly} className={readOnly ? 'opacity-70 cursor-default' : ''} />
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>
-              <Input
-                type="email"
-                placeholder="info@company.ua"
-                value={form.email}
-                onChange={field('email')}
-                readOnly={readOnly}
-                className={readOnly ? 'opacity-70 cursor-default' : ''}
-              />
+              <Input type="email" placeholder="info@company.ua" value={form.email} onChange={field('email')} readOnly={readOnly} className={readOnly ? 'opacity-70 cursor-default' : ''} />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>Сайт</Label>
             {readOnly && form.website ? (
-              <a
-                href={form.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-sm text-brand-400 hover:text-brand-300 py-1"
-              >
+              <a href={form.website} target="_blank" rel="noopener noreferrer" className="block text-sm text-brand-400 hover:text-brand-300 py-1">
                 {form.website}
               </a>
             ) : (
-              <Input
-                placeholder="https://company.ua"
-                value={form.website}
-                onChange={field('website')}
-                readOnly={readOnly}
-                className={readOnly ? 'opacity-70 cursor-default' : ''}
-              />
+              <Input placeholder="https://company.ua" value={form.website} onChange={field('website')} readOnly={readOnly} className={readOnly ? 'opacity-70 cursor-default' : ''} />
             )}
           </div>
 
           <div className="space-y-1.5">
             <Label>Адреса</Label>
-            <Input
-              placeholder="Вулиця, місто"
-              value={form.address}
-              onChange={field('address')}
-              readOnly={readOnly}
-              className={readOnly ? 'opacity-70 cursor-default' : ''}
-            />
+            <Input placeholder="Вулиця, місто" value={form.address} onChange={field('address')} readOnly={readOnly} className={readOnly ? 'opacity-70 cursor-default' : ''} />
           </div>
 
           <div className="space-y-1.5">
             <Label>Примітки</Label>
-            <Textarea
-              placeholder="Додаткова інформація..."
-              rows={3}
-              value={form.notes}
-              onChange={field('notes')}
-              readOnly={readOnly}
-              className={`resize-none${readOnly ? ' opacity-70 cursor-default' : ''}`}
-            />
+            <Textarea placeholder="Додаткова інформація..." rows={3} value={form.notes} onChange={field('notes')} readOnly={readOnly} className={`resize-none${readOnly ? ' opacity-70 cursor-default' : ''}`} />
           </div>
 
           <DialogFooter>
             {readOnly ? (
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                Закрити
-              </Button>
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Закрити</Button>
             ) : (
               <>
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                  Скасувати
-                </Button>
-                <Button type="submit" variant="brand">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Скасувати</Button>
+                <Button type="submit" variant="brand" disabled={mutation.isPending}>
                   {isEdit ? 'Зберегти зміни' : 'Додати'}
                 </Button>
               </>

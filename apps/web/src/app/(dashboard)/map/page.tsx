@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useOrdersStore } from '@/stores/orders'
+import { ordersApi } from '@/lib/api/orders'
 import { objectsApi } from '@/lib/api/objects'
 import type { MapPoint } from '@/components/map/combined-map-client'
 
@@ -16,7 +16,11 @@ const CombinedMapClient = dynamic(
 )
 
 export default function MapPage() {
-  const orders = useOrdersStore((s) => s.orders)
+  const { data: orders = [] } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => ordersApi.list(),
+    staleTime: 30_000,
+  })
 
   const { data: mapPoints = [] } = useQuery<MapPoint[]>({
     queryKey: ['map-points'],

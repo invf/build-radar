@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Order, OrderStatus } from '@/stores/orders'
+import { type Order, type OrderStatus } from '@/lib/api/orders'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ function buildMarkers(orders: Order[], mapPoints: MapPoint[]): MarkerInfo[] {
   // Index orders by objectName (latest win if duplicates)
   const ordersByName = new Map<string, Order>()
   orders.forEach((o) => {
-    if (o.objectName) ordersByName.set(o.objectName, o)
+    if (o.object_name) ordersByName.set(o.object_name, o)
   })
 
   const usedNames = new Set<string>()
@@ -117,11 +117,11 @@ function buildMarkers(orders: Order[], mapPoints: MapPoint[]): MarkerInfo[] {
   // 2. Add standalone order markers (orders with lat/lng not already covered by an object)
   orders.forEach((o) => {
     if (!o.lat || !o.lng) return
-    if (usedNames.has(o.objectName)) return // already shown via object marker
+    if (usedNames.has(o.object_name)) return // already shown via object marker
     result.push({
       lat: o.lat,
       lng: o.lng,
-      name: o.objectName || 'Без назви',
+      name: o.object_name || 'Без назви',
       color: ORDER_COLORS[o.status],
       category: 'order',
       statusLabel: ORDER_LABELS[o.status],

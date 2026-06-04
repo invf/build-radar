@@ -10,6 +10,8 @@ from .ai_analysis import AIAnalysis
 from .notification import Notification
 from .audit_log import AuditLog
 from .parser_log import ParserLog
+from .manufacturer import Manufacturer
+from .order import Order, OrderStatus
 
 __all__ = [
     "User",
@@ -24,4 +26,6 @@ __all__ = [
     "Notification",
     "AuditLog",
     "ParserLog",
+    "Manufacturer",
+    "Order", "OrderStatus",
 ]
