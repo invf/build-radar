@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
 from . import models  # noqa: F401 — registers all ORM mappers before first query
-from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers, ai_enrich, upload, search, smart_search, manufacturers, orders, prozorro_search
+from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers, ai_enrich, upload, search, smart_search, manufacturers, orders, prozorro_search, search_enrich
 
 # Configure logging
 logging.basicConfig(
@@ -106,6 +106,7 @@ app.include_router(smart_search.router, prefix="/api/v1")
 app.include_router(manufacturers.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(prozorro_search.router, prefix="/api/v1")
+app.include_router(search_enrich.router, prefix="/api/v1")
 
 # Static files (uploaded images)
 _uploads_dir = Path(__file__).resolve().parent.parent / "static" / "uploads"

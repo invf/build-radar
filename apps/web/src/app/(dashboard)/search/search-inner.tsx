@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Loader2, Building, FileText, Building2, MapPin,
   Calendar, Plus, ArrowRight, Sparkles, Globe, Phone, Mail,
-  ExternalLink, ChevronDown, ChevronUp, User, Tag, X,
+  ExternalLink, ChevronDown, ChevronUp, User, Tag, X, Wand2, CheckCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Input } from '@/components/ui/input'
@@ -48,7 +48,17 @@ interface SmartResult {
   external_places: Array<{
     name: string; address: string; lat?: number; lng?: number
     city?: string; oblast?: string; osm_id?: string
+    website?: string; phone?: string; email?: string
+    operator?: string; description?: string; developer?: string
+    floors?: number; building_type?: string
   }>
+}
+
+interface AiEnrichResult {
+  name: string; website?: string; developer?: string; developer_edrpou?: string
+  phone?: string; email?: string; description?: string; address?: string
+  city?: string; category?: string; floors?: number; status?: string
+  confidence: string; note?: string; source_url?: string
 }
 
 async function smartSearch(q: string, variants: string[]): Promise<SmartResult> {
@@ -88,12 +98,23 @@ const REL_STATUS: Record<string, { label: string; cls: string }> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function buildObjectPrefill(place: SmartResult['external_places'][0]): ConstructionObject {
+function buildObjectPrefill(
+  place: SmartResult['external_places'][0],
+  enriched?: AiEnrichResult
+): ConstructionObject {
   return {
-    id: '', name: place.name, address: place.address,
-    city: place.city ?? '', oblast: place.oblast ?? '', district: '',
+    id: '',
+    name: place.name,
+    address: enriched?.address || place.address,
+    city: enriched?.city || place.city || '',
+    oblast: place.oblast || '',
+    district: '',
     coordinates: (place.lat && place.lng) ? { lat: place.lat, lng: place.lng } : undefined,
-    status: 'planned' as never, source: 'manual',
+    status: 'planned' as never,
+    source: 'manual',
+    website: enriched?.website || place.website || '',
+    description: enriched?.description || place.description || '',
+    floors: enriched?.floors || place.floors || undefined,
     created_at: '', updated_at: '', permits: [], tenders: [],
   } as unknown as ConstructionObject
 }
@@ -294,6 +315,47 @@ function CompanyCard({ c }: { c: SmartResult['companies'][0] }) {
   )
 }
 
+// ── AI Enrich Button (reusable) ───────────────────────────────────────────────
+
+function AiEnrichButton({
+  name, city, entityType = 'object', websiteUrl,
+  onEnriched,
+}: {
+  name: string; city?: string; entityType?: string; websiteUrl?: string
+  onEnriched?: (r: AiEnrichResult) => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const handle = async () => {
+    setLoading(true)
+    try {
+      const r = await apiFetch<AiEnrichResult>('/search/enrich-place', {
+        method: 'POST',
+        data: { name, city, entity_type: entityType, website_url: websiteUrl },
+      })
+      setDone(true)
+      onEnriched?.(r)
+    } catch { /* silent */ } finally {
+      setLoading(false)
+    }
+  }
+
+  if (done) return (
+    <span className="flex items-center gap-1 text-[10px] text-purple-400">
+      <CheckCircle className="h-3 w-3" />Знайдено
+    </span>
+  )
+  return (
+    <button onClick={handle} disabled={loading}
+      className="flex items-center gap-1 text-[11px] text-purple-400/70 hover:text-purple-300 transition-colors"
+      title="Знайти сайт через ШІ">
+      {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+      {loading ? 'ШІ...' : 'ШІ'}
+    </button>
+  )
+}
+
 // ── External Company Card ─────────────────────────────────────────────────────
 
 function ExternalCompanyCard({
@@ -375,6 +437,11 @@ function ExternalCompanyCard({
           >
             <Plus className="h-3.5 w-3.5" />Додати
           </Button>
+          {!c.website && (
+            <AiEnrichButton name={c.name} entityType="company" onEnriched={(r) => {
+              if (r.website) window.open(r.website, '_blank')
+            }} />
+          )}
           {hasExtra && (
             <button
               onClick={() => setExpanded(!expanded)}
@@ -394,12 +461,43 @@ function ExternalCompanyCard({
 
 function ExternalPlaceCard({
   p, onAdd,
-}: { p: SmartResult['external_places'][0]; onAdd: () => void }) {
+}: { p: SmartResult['external_places'][0]; onAdd: (enriched?: AiEnrichResult) => void }) {
+  const [enriching, setEnriching] = useState(false)
+  const [enriched, setEnriched] = useState<AiEnrichResult | null>(null)
+  const [enrichError, setEnrichError] = useState<string | null>(null)
+
   const mapsUrl = p.lat && p.lng
     ? `https://www.google.com/maps?q=${p.lat},${p.lng}`
-    : p.address
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}`
-    : null
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.address)}`
+
+  const handleEnrich = async () => {
+    setEnriching(true)
+    setEnrichError(null)
+    try {
+      const result = await apiFetch<AiEnrichResult>('/search/enrich-place', {
+        method: 'POST',
+        data: {
+          name: p.name,
+          city: p.city || undefined,
+          entity_type: 'object',
+          website_url: p.website || undefined,
+        },
+      })
+      setEnriched(result)
+    } catch {
+      setEnrichError('Не вдалось збагатити дані')
+    } finally {
+      setEnriching(false)
+    }
+  }
+
+  const display = enriched || null
+  const website = display?.website || p.website
+  const phone = display?.phone || p.phone
+  const email = display?.email || p.email
+  const description = display?.description || p.description
+  const developer = display?.developer || p.developer || p.operator
+  const floors = display?.floors || p.floors
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
@@ -410,31 +508,115 @@ function ExternalPlaceCard({
 
         <div className="flex-1 min-w-0 space-y-1.5">
           <p className="text-sm font-medium text-zinc-100">{p.name}</p>
+
+          {/* Address + meta */}
           <p className="text-xs text-zinc-500 leading-relaxed">{p.address}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-600">
             {p.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{p.city}</span>}
             {p.oblast && <span>{p.oblast}</span>}
+            {floors && <span>{floors} пов.</span>}
+            {p.building_type && <span className="capitalize">{p.building_type}</span>}
             {p.lat && p.lng && (
               <span className="font-mono text-zinc-700">{p.lat.toFixed(4)}, {p.lng.toFixed(4)}</span>
             )}
           </div>
-          {mapsUrl && (
+
+          {/* Contacts from OSM or AI */}
+          {(website || phone || email) && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {website && <WebsiteLink url={website} />}
+              {phone && (
+                <a href={`tel:${phone}`} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-200">
+                  <Phone className="h-3 w-3" />{phone}
+                </a>
+              )}
+              {email && (
+                <a href={`mailto:${email}`} className="flex items-center gap-1 text-zinc-400 hover:text-zinc-200">
+                  <Mail className="h-3 w-3" />{email}
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Developer/operator */}
+          {developer && (
+            <p className="text-xs text-zinc-500 flex items-center gap-1">
+              <Building className="h-3 w-3 shrink-0" />
+              <span className="text-zinc-400">{developer}</span>
+              {display?.developer_edrpou && (
+                <span className="font-mono text-brand-400/70 ml-1">ЄДРПОУ {display.developer_edrpou}</span>
+              )}
+            </p>
+          )}
+
+          {/* Description from AI */}
+          {description && (
+            <p className="text-xs text-zinc-400 leading-relaxed border-t border-zinc-800/50 pt-1.5 mt-0.5">
+              {description}
+            </p>
+          )}
+
+          {/* Category / status from AI */}
+          {(display?.category || display?.status) && (
+            <div className="flex gap-2 text-xs">
+              {display.category && (
+                <span className="px-1.5 py-0.5 rounded border border-zinc-700 text-zinc-500">{display.category}</span>
+              )}
+              {display.status && (
+                <span className="px-1.5 py-0.5 rounded border border-brand-500/30 text-brand-400">{display.status}</span>
+              )}
+            </div>
+          )}
+
+          {enrichError && (
+            <p className="text-xs text-red-400">{enrichError}</p>
+          )}
+
+          {/* Links */}
+          <div className="flex items-center gap-3 pt-0.5">
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-brand-400/70 hover:text-brand-400 transition-colors">
+              className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-brand-400 transition-colors">
               <ExternalLink className="h-3 w-3" />Google Maps
             </a>
-          )}
+            {enriched?.source_url && enriched.source_url !== website && (
+              <a href={enriched.source_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-brand-400 transition-colors">
+                <ExternalLink className="h-3 w-3" />Джерело
+              </a>
+            )}
+          </div>
         </div>
 
-        <div className="shrink-0">
+        {/* Actions */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
             className="h-7 gap-1 border-brand-600/40 text-brand-400 hover:bg-brand-600/10 text-xs"
-            onClick={onAdd}
+            onClick={() => onAdd(enriched || undefined)}
           >
             <Plus className="h-3.5 w-3.5" />Додати
           </Button>
+
+          {!enriched ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 text-xs"
+              onClick={handleEnrich}
+              disabled={enriching}
+              title="Знайти сайт, збагатити через ШІ"
+            >
+              {enriching
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Wand2 className="h-3.5 w-3.5" />}
+              {enriching ? 'ШІ...' : 'ШІ'}
+            </Button>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] text-purple-400">
+              <CheckCircle className="h-3 w-3" />Збагачено
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -672,7 +854,11 @@ export function SearchPageInner({ initialQ }: { initialQ: string }) {
                   <div className="space-y-2">
                     <p className="text-xs text-zinc-500 uppercase tracking-wider">OpenStreetMap — місця та будівлі</p>
                     {smart.external_places.map((p, i) => (
-                      <ExternalPlaceCard key={`ep-${i}`} p={p} onAdd={() => setAddObjectData(buildObjectPrefill(p))} />
+                      <ExternalPlaceCard
+                        key={`ep-${i}`}
+                        p={p}
+                        onAdd={(enriched) => setAddObjectData(buildObjectPrefill(p, enriched))}
+                      />
                     ))}
                   </div>
                 )}

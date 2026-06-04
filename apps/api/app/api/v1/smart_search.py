@@ -206,6 +206,15 @@ class ExternalPlace(BaseModel):
     city: Optional[str] = None
     oblast: Optional[str] = None
     osm_id: Optional[str] = None
+    # OSM tags
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    operator: Optional[str] = None
+    description: Optional[str] = None
+    developer: Optional[str] = None
+    floors: Optional[int] = None
+    building_type: Optional[str] = None
 
 
 class SmartSearchResponse(BaseModel):
@@ -276,6 +285,14 @@ async def smart_search(
                     city=r.get("city"),
                     oblast=r.get("oblast"),
                     osm_id=str(r.get("osm_id", "")),
+                    website=r.get("website") or None,
+                    phone=r.get("phone") or None,
+                    email=r.get("email") or None,
+                    operator=r.get("operator") or None,
+                    description=r.get("description") or None,
+                    developer=r.get("developer") or None,
+                    floors=r.get("floors"),
+                    building_type=r.get("building_type") or None,
                 )
                 for r in osm_results if r.get("display_name")
             ]

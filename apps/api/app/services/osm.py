@@ -70,11 +70,43 @@ def _normalize_nominatim(item: dict) -> dict:
     house = addr.get("house_number") or ""
     short_addr = f"{road}, {house}".strip(", ") if road else ""
 
+    extra = item.get("extratags") or {}
+    name_details = item.get("namedetails") or {}
+
+    # Extract as many useful tags as possible
+    website = (
+        extra.get("website")
+        or extra.get("contact:website")
+        or extra.get("url")
+        or ""
+    )
+    phone = (
+        extra.get("phone")
+        or extra.get("contact:phone")
+        or extra.get("contact:mobile")
+        or ""
+    )
+    email = extra.get("email") or extra.get("contact:email") or ""
+    operator = extra.get("operator") or extra.get("brand") or extra.get("owner") or ""
+    description = extra.get("description") or extra.get("note") or ""
+    opening_hours = extra.get("opening_hours") or ""
+    # Developer/builder tags (rare but useful for construction)
+    developer = extra.get("developer") or extra.get("construction:developer") or ""
+
+    # All Ukrainian name variants
+    name_uk = (
+        name_details.get("name:uk")
+        or name_details.get("name")
+        or item.get("name")
+        or short_addr
+        or city
+    )
+
     return {
         "osm_id": str(item.get("osm_id", "")),
         "osm_type": item.get("osm_type", ""),
         "display_name": item.get("display_name", ""),
-        "name": item.get("namedetails", {}).get("name") or item.get("name") or short_addr or city,
+        "name": name_uk,
         "address": short_addr,
         "city": city,
         "oblast": oblast,
@@ -82,8 +114,16 @@ def _normalize_nominatim(item: dict) -> dict:
         "lng": float(item["lon"]),
         "type": item.get("type", ""),
         "category": item.get("class", ""),
-        "floors": _parse_floors(item.get("extratags", {})),
-        "building_type": (item.get("extratags") or {}).get("building") or "",
+        "floors": _parse_floors(extra),
+        "building_type": extra.get("building") or "",
+        # Enriched fields from OSM tags
+        "website": website,
+        "phone": phone,
+        "email": email,
+        "operator": operator,
+        "description": description,
+        "opening_hours": opening_hours,
+        "developer": developer,
     }
 
 
