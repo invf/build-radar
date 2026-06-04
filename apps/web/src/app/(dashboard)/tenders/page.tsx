@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatCurrency } from '@/lib/utils/format'
 import type { Tender, TenderStatus } from '@/types'
+import { TenderFormModal } from '@/components/tenders/tender-form-modal'
 
 interface TenderWithObject extends Tender {
   object_name?: string
@@ -63,14 +64,17 @@ export default function TendersPage() {
             {data?.total ? `${data.total.toLocaleString('uk-UA')} тендерів` : 'Завантаження...'}
           </p>
         </div>
-        <a
-          href="https://prozorro.gov.ua"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          Джерело: Prozorro →
-        </a>
+        <div className="flex items-center gap-3">
+          <TenderFormModal />
+          <a
+            href="https://prozorro.gov.ua"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Джерело: Prozorro →
+          </a>
+        </div>
       </div>
 
       {/* Filters */}

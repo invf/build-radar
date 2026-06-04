@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { StickyNote, Save, Loader2, Tag, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { NOTE_STATUS_LABELS, NOTE_STATUS_COLORS } from '@/lib/utils/format'
 import { notesApi } from '@/lib/api/notes'
 import type { NoteStatus } from '@/types'
@@ -80,12 +79,12 @@ export function NotePanel({ objectId }: NotePanelProps) {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Статус</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as NoteStatus)}>
+            <Select value={status || '_none'} onValueChange={(v) => setStatus(v === '_none' ? '' : v as NoteStatus)}>
               <SelectTrigger>
                 <SelectValue placeholder="Не вказано" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Не вказано</SelectItem>
+                <SelectItem value="_none">Не вказано</SelectItem>
                 {NOTE_STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>{NOTE_STATUS_LABELS[s]}</SelectItem>
                 ))}

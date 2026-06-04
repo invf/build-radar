@@ -1,46 +1,48 @@
 'use client'
 
-import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
-import { FiltersPanel } from '@/components/objects/filters-panel'
+import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useOrdersStore } from '@/stores/orders'
+import { objectsApi } from '@/lib/api/objects'
+import type { MapPoint } from '@/components/map/combined-map-client'
 
-const MapClient = dynamic(
-  () => import('@/components/map/map-client').then((m) => m.MapClient),
+const CombinedMapClient = dynamic(
+  () => import('@/components/map/combined-map-client').then((m) => m.CombinedMapClient),
   {
     ssr: false,
-    loading: () => <Skeleton className="w-full h-[calc(100vh-56px-120px)] rounded-xl" />,
+    loading: () => <Skeleton className="w-full rounded-xl" style={{ height: 'calc(100vh - 130px)' }} />,
   }
 )
 
-function MapPageInner() {
-  const searchParams = useSearchParams()
-  const focusObjectId = searchParams.get('object') || undefined
+export default function MapPage() {
+  const orders = useOrdersStore((s) => s.orders)
+
+  const { data: mapPoints = [] } = useQuery<MapPoint[]>({
+    queryKey: ['map-points'],
+    queryFn: () => objectsApi.getMapPoints() as Promise<MapPoint[]>,
+    staleTime: 2 * 60_000,
+  })
+
+  const totalMarkers =
+    mapPoints.length + orders.filter((o) => o.lat && o.lng).length
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 pb-2 border-b border-zinc-800 bg-zinc-950">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-lg font-semibold text-zinc-100">Карта об&apos;єктів</h1>
-            <p className="text-xs text-zinc-500">Всі будівельні об&apos;єкти України</p>
-          </div>
-        </div>
-        <FiltersPanel />
+      <div className="p-4 pb-3 border-b border-zinc-800 bg-zinc-950">
+        <h1 className="text-lg font-semibold text-zinc-100">Мапа</h1>
+        <p className="text-xs text-zinc-500 mt-0.5">
+          Об&apos;єкти і замовлення на одній карті &mdash; {totalMarkers} маркерів
+        </p>
       </div>
 
       <div className="flex-1 p-4 pt-3">
-        <MapClient focusObjectId={focusObjectId} height="calc(100vh - 200px)" />
+        <CombinedMapClient
+          orders={orders}
+          mapPoints={mapPoints}
+          height="calc(100vh - 130px)"
+        />
       </div>
     </div>
-  )
-}
-
-export default function MapPage() {
-  return (
-    <Suspense>
-      <MapPageInner />
-    </Suspense>
   )
 }

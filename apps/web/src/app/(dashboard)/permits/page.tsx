@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from '@/lib/utils/format'
 import type { Permit, PermitType } from '@/types'
+import { PermitFormModal } from '@/components/permits/permit-form-modal'
 
 interface PermitWithObject extends Permit {
   object_name?: string
@@ -72,6 +73,7 @@ export default function PermitsPage() {
             {data?.total ? `${data.total.toLocaleString('uk-UA')} дозволів` : 'Завантаження...'}
           </p>
         </div>
+        <PermitFormModal />
       </div>
 
       {/* Filters */}

@@ -43,11 +43,15 @@ export function MapClient({ focusObjectId, height = 'calc(100vh - 56px)' }: MapC
 
   // Initialize Leaflet map (client-side only)
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    if (!mapRef.current) return
+
+    let cancelled = false
 
     const initMap = async () => {
       const L = (await import('leaflet')).default
       await import('leaflet/dist/leaflet.css')
+
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return
 
       // Fix default marker icon
       delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
@@ -57,11 +61,16 @@ export function MapClient({ focusObjectId, height = 'calc(100vh - 56px)' }: MapC
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       })
 
-      const map = L.map(mapRef.current!, {
+      const map = L.map(mapRef.current, {
         center: [48.3794, 31.1656],
         zoom: 6,
         zoomControl: true,
       })
+
+      if (cancelled) {
+        map.remove()
+        return
+      }
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
@@ -75,9 +84,11 @@ export function MapClient({ focusObjectId, height = 'calc(100vh - 56px)' }: MapC
     initMap()
 
     return () => {
+      cancelled = true
       if (mapInstanceRef.current) {
         (mapInstanceRef.current as { remove: () => void }).remove()
         mapInstanceRef.current = null
+        setIsMapReady(false)
       }
     }
   }, [])
