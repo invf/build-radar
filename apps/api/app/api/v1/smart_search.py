@@ -11,7 +11,7 @@ from ...core.database import get_db
 from ...core.dependencies import get_current_user
 from ...models.user import User
 from ...models.construction_object import ConstructionObject
-from ...models.company import Company
+from ...models.company import Company, ObjectCompany
 from ...schemas.objects import ConstructionObjectListSchema
 from ...schemas.companies import CompanySchema
 from ...services import edrpou as edrpou_svc
@@ -108,6 +108,16 @@ class CompanyResult(BaseModel):
 
 
 async def search_companies_db(db: AsyncSession, terms: list[str], limit: int = 10) -> list[CompanyResult]:
+    # Subquery: count linked objects per company
+    cnt_sq = (
+        select(
+            ObjectCompany.company_id,
+            func.count().label("cnt"),
+        )
+        .group_by(ObjectCompany.company_id)
+        .subquery()
+    )
+
     q = select(
         Company.id,
         Company.name,
@@ -115,12 +125,12 @@ async def search_companies_db(db: AsyncSession, terms: list[str], limit: int = 1
         Company.type,
         Company.address,
         Company.phone,
-        Company.objects_count,
+        func.coalesce(cnt_sq.c.cnt, 0).label("objects_count"),
         Company.ai_score,
         func.greatest(
             *[func.similarity(func.lower(Company.name), t.lower()) for t in terms]
         ).label("score"),
-    ).where(
+    ).outerjoin(cnt_sq, Company.id == cnt_sq.c.company_id).where(
         or_(
             _fuzzy_where(Company.name, terms),
             _fuzzy_where(Company.edrpou, terms),
@@ -137,7 +147,7 @@ async def search_companies_db(db: AsyncSession, terms: list[str], limit: int = 1
         type=str(r["type"]) if r["type"] else None,
         address=r["address"],
         phone=r["phone"],
-        objects_count=r["objects_count"] or 0,
+        objects_count=int(r["objects_count"] or 0),
         ai_score=r["ai_score"],
         score=float(r["score"] or 0),
     ) for r in rows]
