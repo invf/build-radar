@@ -45,9 +45,15 @@ class ObjectResult(BaseModel):
     oblast: Optional[str] = None
     status: str
     category: Optional[str] = None
+    object_type: Optional[str] = None
     source: str
     ai_score: Optional[float] = None
-    score: float = 0.0  # relevance score
+    description: Optional[str] = None
+    website: Optional[str] = None
+    floors: Optional[int] = None
+    building_area: Optional[float] = None
+    photos: list[str] = []
+    score: float = 0.0
 
     model_config = {"from_attributes": True}
 
@@ -61,9 +67,14 @@ async def search_objects(db: AsyncSession, terms: list[str], limit: int = 12) ->
         ConstructionObject.oblast,
         ConstructionObject.status,
         ConstructionObject.category,
+        ConstructionObject.object_type,
         ConstructionObject.source,
         ConstructionObject.ai_score,
-        # best similarity across terms as score
+        ConstructionObject.description,
+        ConstructionObject.website,
+        ConstructionObject.floors,
+        ConstructionObject.building_area,
+        ConstructionObject.photos,
         func.greatest(
             *[func.similarity(func.lower(ConstructionObject.name), t.lower()) for t in terms]
         ).label("score"),
@@ -85,8 +96,14 @@ async def search_objects(db: AsyncSession, terms: list[str], limit: int = 12) ->
         oblast=r["oblast"],
         status=r["status"],
         category=r["category"],
+        object_type=r["object_type"],
         source=r["source"],
         ai_score=r["ai_score"],
+        description=r["description"],
+        website=r["website"],
+        floors=r["floors"],
+        building_area=r["building_area"],
+        photos=r["photos"] or [],
         score=float(r["score"] or 0),
     ) for r in rows]
 
@@ -100,6 +117,10 @@ class CompanyResult(BaseModel):
     type: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    relationship_status: Optional[str] = None
     objects_count: int = 0
     ai_score: Optional[float] = None
     score: float = 0.0
@@ -125,6 +146,10 @@ async def search_companies_db(db: AsyncSession, terms: list[str], limit: int = 1
         Company.type,
         Company.address,
         Company.phone,
+        Company.email,
+        Company.website,
+        Company.logo_url,
+        Company.relationship_status,
         func.coalesce(cnt_sq.c.cnt, 0).label("objects_count"),
         Company.ai_score,
         func.greatest(
@@ -147,6 +172,10 @@ async def search_companies_db(db: AsyncSession, terms: list[str], limit: int = 1
         type=str(r["type"]) if r["type"] else None,
         address=r["address"],
         phone=r["phone"],
+        email=r["email"],
+        website=r["website"],
+        logo_url=r["logo_url"],
+        relationship_status=str(r["relationship_status"]) if r["relationship_status"] else None,
         objects_count=int(r["objects_count"] or 0),
         ai_score=r["ai_score"],
         score=float(r["score"] or 0),
@@ -161,6 +190,12 @@ class ExternalCompany(BaseModel):
     address: Optional[str] = None
     status: Optional[str] = None
     type: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    ceo: Optional[str] = None
+    activity: Optional[str] = None
+    registration_date: Optional[str] = None
 
 
 class ExternalPlace(BaseModel):
@@ -218,6 +253,12 @@ async def smart_search(
                     address=r.get("address"),
                     status=r.get("status"),
                     type=r.get("type"),
+                    phone=r.get("phone"),
+                    email=r.get("email"),
+                    website=r.get("website"),
+                    ceo=r.get("ceo"),
+                    activity=r.get("activity"),
+                    registration_date=r.get("registration_date"),
                 )
                 for r in edrpou_results if r.get("name")
             ]
