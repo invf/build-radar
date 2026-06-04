@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { format } from 'date-fns'
-import { Trash2, CheckSquare, RotateCcw, Pencil, Plus, MapPin } from 'lucide-react'
+import { Trash2, CheckSquare, RotateCcw, Pencil, Plus, MapPin, Database } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -13,6 +13,7 @@ import { ManufacturerFormModal } from '@/components/manufacturers/manufacturer-f
 import { ordersApi, type Order, type OrderStatus } from '@/lib/api/orders'
 import { manufacturersApi, type Manufacturer } from '@/lib/api/manufacturers'
 import { cn } from '@/lib/utils/cn'
+import Link from 'next/link'
 
 type ActiveTab = OrderStatus | 'map'
 
@@ -238,6 +239,33 @@ function AddOrderButton({ status }: { status: 'in_progress' | 'planned' }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function LocalDataBanner() {
+  const [hasLocal, setHasLocal] = useState(false)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('buildradar-orders')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      const items = parsed?.state?.orders ?? []
+      if (items.length > 0) setHasLocal(true)
+    } catch { /* ignore */ }
+  }, [])
+  if (!hasLocal) return null
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-950/20 px-4 py-3 text-sm">
+      <Database className="h-4 w-4 text-yellow-400 shrink-0" />
+      <span className="text-yellow-200 flex-1">
+        Знайдено замовлення у локальному сховищі браузера. Перенесіть їх у базу даних.
+      </span>
+      <Link href="/settings/migrate">
+        <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-950/40 shrink-0">
+          Мігрувати
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
 export default function OrdersPage() {
   const qc = useQueryClient()
   const [activeTab, setActiveTab] = useState<ActiveTab>('in_progress')
@@ -295,6 +323,7 @@ export default function OrdersPage() {
         <h1 className="text-xl font-semibold text-zinc-100">Замовлення</h1>
         <p className="text-sm text-zinc-500 mt-1">Управління виробничими замовленнями</p>
       </div>
+      <LocalDataBanner />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ActiveTab)} className="space-y-5">
         <TabsList className="gap-1">
