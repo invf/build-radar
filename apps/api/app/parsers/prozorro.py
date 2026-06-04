@@ -33,14 +33,37 @@ class ProzorroParser(BaseParser):
     page_size = 100
 
     async def fetch_objects(self) -> AsyncGenerator[ParsedObject, None]:
-        """Fetch construction tenders from Prozorro API."""
-        # Fetch tenders page by page
+        """Not used — Prozorro saves to tenders table, not construction_objects."""
+        return
+        yield  # make it an async generator
+
+    async def parse_raw(self, raw: dict) -> ParsedObject | None:
+        """Not used — override run() instead."""
+        return None
+
+    async def run(self, db) -> dict:
+        """Fetch Prozorro construction tenders and save to tenders table."""
+        from ..models.parser_log import ParserLog
+        from sqlalchemy import select as sa_select
+
+        started_at = datetime.now(timezone.utc)
+        log = ParserLog(source=self.source_name, started_at=started_at, status="running")
+        db.add(log)
+        await db.commit()
+
+        created = 0
+        updated = 0
+        errors = []
         offset = None
         page_count = 0
-        max_pages = 200  # Safety limit
+        max_pages = 200
+        raw_tenders: list[dict] = []
 
         while page_count < max_pages:
-            params = {"limit": self.page_size, "opt_fields": "status,procurementMethodType"}
+            params = {
+                "limit": self.page_size,
+                "opt_fields": "title,status,value,procuringEntity,tenderPeriod,items",
+            }
             if offset:
                 params["offset"] = offset
 
@@ -48,24 +71,34 @@ class ProzorroParser(BaseParser):
                 data = await self.fetch(f"{self.base_url}/tenders", params=params)
             except Exception as e:
                 logger.error(f"Prozorro API error: {e}")
+                errors.append(str(e))
                 break
 
-            tenders = data.get("data", [])
-            if not tenders:
+            tender_refs = data.get("data", [])
+            if not tender_refs:
                 break
 
-            for tender_ref in tenders:
-                tender_id = tender_ref.get("id")
+            for ref in tender_refs:
+                tender_id = ref.get("id")
                 if not tender_id:
                     continue
-
                 try:
-                    obj = await self.parse_tender(tender_id)
-                    if obj:
-                        yield obj
-                    await asyncio.sleep(0.1)  # Rate limiting
+                    detail = await self.fetch(f"{self.base_url}/tenders/{tender_id}")
+                    raw = detail.get("data", {})
+                    if not raw:
+                        continue
+                    # Only keep construction-related tenders
+                    items = raw.get("items", [])
+                    is_construction = any(
+                        str(item.get("classification", {}).get("id", "")).startswith(cpv)
+                        for item in items
+                        for cpv in CONSTRUCTION_CPV_CODES
+                    )
+                    if is_construction or not items:
+                        raw_tenders.append(raw)
+                    await asyncio.sleep(0.1)
                 except Exception as e:
-                    logger.warning(f"Error parsing tender {tender_id}: {e}")
+                    errors.append(f"tender {tender_id}: {e}")
 
             offset = data.get("next_page", {}).get("offset")
             if not offset:
@@ -73,64 +106,71 @@ class ProzorroParser(BaseParser):
             page_count += 1
             await asyncio.sleep(0.5)
 
-    async def parse_tender(self, tender_id: str) -> ParsedObject | None:
-        """Fetch and parse a single tender."""
-        try:
-            data = await self.fetch(f"{self.base_url}/tenders/{tender_id}")
-            tender = data.get("data", {})
-            return await self.parse_raw(tender)
-        except Exception as e:
-            logger.warning(f"Error fetching tender {tender_id}: {e}")
-            return None
+        # Persist to tenders table (not construction_objects)
+        created, updated = await self._persist(db, raw_tenders)
 
-    async def parse_raw(self, raw: dict) -> ParsedObject | None:
-        if not raw:
-            return None
+        log.completed_at = datetime.now(timezone.utc)
+        log.objects_found = len(raw_tenders)
+        log.objects_created = created
+        log.objects_updated = updated
+        log.errors = errors[:50]
+        log.status = "completed" if not errors else "failed"
+        await db.commit()
 
-        # Check if it's construction-related
-        items = raw.get("items", [])
-        is_construction = False
-        for item in items:
-            for cpv in CONSTRUCTION_CPV_CODES:
-                if str(item.get("classification", {}).get("id", "")).startswith(cpv):
-                    is_construction = True
-                    break
+        return {"created": created, "updated": updated, "errors": len(errors)}
 
-        if not is_construction and items:
-            return None
+    async def _persist(self, db, raw_list: list[dict]) -> tuple[int, int]:
+        """Save raw Prozorro tenders to the tenders table."""
+        from sqlalchemy import select as sa_select
+        from ..models.tender import Tender, TenderStatus
 
-        title = raw.get("title", "")
-        procuring = raw.get("procuringEntity", {})
-        entity_name = procuring.get("name", "")
-        address = procuring.get("address", {})
-        city = address.get("locality", "")
-        region = address.get("region", "")
+        status_map = {
+            "active": TenderStatus.active,
+            "complete": TenderStatus.complete,
+            "cancelled": TenderStatus.cancelled,
+            "unsuccessful": TenderStatus.unsuccessful,
+        }
+        created = updated = 0
 
-        # Build parsed object
-        tender_id = raw.get("id", "")
+        for raw in raw_list:
+            tender_id = raw.get("id")
+            if not tender_id:
+                continue
+            try:
+                existing = await db.scalar(sa_select(Tender).where(Tender.prozorro_id == tender_id))
+                status = status_map.get(raw.get("status", "active"), TenderStatus.active)
+                amount = raw.get("value", {}).get("amount")
+                currency = raw.get("value", {}).get("currency", "UAH")
+                deadline_str = raw.get("tenderPeriod", {}).get("endDate")
+                deadline = None
+                if deadline_str:
+                    try:
+                        deadline = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        pass
+                procuring = raw.get("procuringEntity", {})
 
-        # Store tender in DB directly
-        await self._save_tender(raw)
+                if not existing:
+                    db.add(Tender(
+                        prozorro_id=tender_id,
+                        title=raw.get("title", "Тендер"),
+                        status=status, amount=amount, currency=currency,
+                        deadline=deadline,
+                        procuring_entity=procuring.get("name"),
+                        procuring_entity_edrpou=procuring.get("identifier", {}).get("id"),
+                    ))
+                    created += 1
+                else:
+                    existing.status = status
+                    existing.amount = amount
+                    if deadline:
+                        existing.deadline = deadline
+                    updated += 1
+            except Exception as e:
+                logger.warning("Error persisting tender %s: %s", tender_id, e)
 
-        return ParsedObject(
-            name=title,
-            source=self.source_name,
-            source_id=tender_id,
-            city=city or None,
-            oblast=region or None,
-            developer_name=entity_name or None,
-            raw_data={
-                "prozorro_id": tender_id,
-                "status": raw.get("status"),
-                "amount": raw.get("value", {}).get("amount"),
-                "currency": raw.get("value", {}).get("currency", "UAH"),
-            },
-        )
-
-    async def _save_tender(self, raw: dict):
-        """Save tender directly to tenders table."""
-        # This will be called from the background task with DB access
-        pass
+        await db.commit()
+        return created, updated
 
     async def persist_tenders(self, db, tenders_data: list[dict]):
         """Persist tenders to DB - called with active session."""
