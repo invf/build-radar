@@ -1,27 +1,49 @@
 """Companies API endpoints."""
 from uuid import UUID
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, desc, asc
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
 
 from ...core.database import get_db
 from ...core.dependencies import get_current_user
-from ...core.redis import cache_get, cache_set
+from ...core.redis import cache_get, cache_set, cache_delete, cache_delete_pattern
 from ...models.user import User
-from ...models.company import Company, CompanyRole, ObjectCompany
+from ...models.company import Company, CompanyRole, ObjectCompany, RelationshipStatus
 from ...models.construction_object import ConstructionObject
+from ...models.permit import Permit
+from ...models.tender import Tender
 from ...models.saved_search import FavoriteCompany
 from ...schemas.companies import (
     CompanySchema,
     CompanyDetailSchema,
     CompanyListResponse,
+    CompanyCreateSchema,
+    CompanyUpdateSchema,
 )
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 CACHE_TTL = 300  # 5 min
+
+
+@router.post("", response_model=CompanySchema, status_code=201)
+async def create_company(
+    body: CompanyCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    company = Company(**body.model_dump())
+    db.add(company)
+    await db.commit()
+    await db.refresh(company)
+    await cache_delete_pattern("companies:list:*")
+    schema = CompanySchema.model_validate(company)
+    schema.objects_count = 0
+    return schema
 
 
 @router.get("", response_model=CompanyListResponse)
@@ -150,6 +172,46 @@ async def get_company(
     return schema
 
 
+@router.patch("/{company_id}", response_model=CompanySchema)
+async def update_company(
+    company_id: UUID,
+    body: CompanyUpdateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Company).where(Company.id == company_id))
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Компанію не знайдено")
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(company, field, value)
+        if field in ("contacts", "projects"):
+            flag_modified(company, field)
+
+    await db.commit()
+    await db.refresh(company)
+    await cache_delete(f"companies:{company_id}")
+    await cache_delete_pattern("companies:list:*")
+    schema = CompanySchema.model_validate(company)
+    schema.objects_count = 0
+    return schema
+
+
+@router.delete("/{company_id}", status_code=204)
+async def delete_company(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Company).where(Company.id == company_id))
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Компанію не знайдено")
+    await db.delete(company)
+    await db.commit()
+
+
 @router.post("/{company_id}/favorite", status_code=201)
 async def favorite_company(
     company_id: UUID,
@@ -189,3 +251,156 @@ async def unfavorite_company(
 
     await db.delete(fav)
     await db.commit()
+
+
+@router.post("/{company_id}/link/{object_id}", status_code=201)
+async def link_object_to_company(
+    company_id: UUID,
+    object_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    existing = await db.execute(
+        select(ObjectCompany).where(
+            ObjectCompany.company_id == company_id,
+            ObjectCompany.object_id == object_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        return {"ok": True}
+    oc = ObjectCompany(
+        company_id=company_id,
+        object_id=object_id,
+        role=CompanyRole.general_contractor,
+        is_primary=False,
+    )
+    db.add(oc)
+    await db.commit()
+    return {"ok": True}
+
+
+class CompanyObjectItem(BaseModel):
+    id: str
+    name: str
+    address: str
+    city: str
+    photos: list[str]
+    status: str
+    category: str
+    object_type: str
+    floors: int | None
+    building_area: float | None
+    description: str | None
+    ai_score: float | None
+    permits_count: int
+    tenders_count: int
+    relationship_status: str | None
+    role: str | None
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/{company_id}/objects", response_model=list[CompanyObjectItem])
+async def list_company_objects(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    permits_sq = (
+        select(Permit.object_id, func.count(Permit.id).label("cnt"))
+        .group_by(Permit.object_id)
+        .subquery()
+    )
+    tenders_sq = (
+        select(Tender.object_id, func.count(Tender.id).label("cnt"))
+        .group_by(Tender.object_id)
+        .subquery()
+    )
+    rows = await db.execute(
+        select(
+            ConstructionObject,
+            ObjectCompany.relationship_status,
+            ObjectCompany.role,
+            func.coalesce(permits_sq.c.cnt, 0).label("permits_count"),
+            func.coalesce(tenders_sq.c.cnt, 0).label("tenders_count"),
+        )
+        .join(ObjectCompany, ObjectCompany.object_id == ConstructionObject.id)
+        .outerjoin(permits_sq, permits_sq.c.object_id == ConstructionObject.id)
+        .outerjoin(tenders_sq, tenders_sq.c.object_id == ConstructionObject.id)
+        .where(ObjectCompany.company_id == company_id)
+        .order_by(ConstructionObject.updated_at.desc())
+    )
+    return [
+        CompanyObjectItem(
+            id=str(obj.id),
+            name=obj.name,
+            address=obj.address or "",
+            city=obj.city or "",
+            photos=obj.photos or [],
+            status=obj.status.value if obj.status else "",
+            category=obj.category.value if obj.category else "",
+            object_type=obj.object_type.value if obj.object_type else "",
+            floors=obj.floors,
+            building_area=obj.building_area,
+            description=obj.description,
+            ai_score=obj.ai_score,
+            permits_count=permits_count,
+            tenders_count=tenders_count,
+            relationship_status=rel_status.value if rel_status else None,
+            role=role.value if role else None,
+        )
+        for obj, rel_status, role, permits_count, tenders_count in rows.all()
+    ]
+
+
+@router.delete("/{company_id}/objects/{object_id}", status_code=204)
+async def unlink_object_from_company(
+    company_id: UUID,
+    object_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ObjectCompany).where(
+            ObjectCompany.company_id == company_id,
+            ObjectCompany.object_id == object_id,
+        )
+    )
+    oc = result.scalar_one_or_none()
+    if oc:
+        await db.delete(oc)
+        await db.commit()
+
+
+class RelationshipStatusUpdate(BaseModel):
+    relationship_status: str | None
+
+
+@router.patch("/{company_id}/objects/{object_id}/relationship", status_code=200)
+async def update_object_relationship(
+    company_id: UUID,
+    object_id: UUID,
+    body: RelationshipStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ObjectCompany).where(
+            ObjectCompany.company_id == company_id,
+            ObjectCompany.object_id == object_id,
+        )
+    )
+    oc = result.scalar_one_or_none()
+    if not oc:
+        raise HTTPException(status_code=404, detail="Зв'язок не знайдено")
+
+    status_val = None
+    if body.relationship_status:
+        try:
+            status_val = RelationshipStatus(body.relationship_status)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Невірний статус")
+
+    oc.relationship_status = status_val
+    await db.commit()
+    return {"ok": True}

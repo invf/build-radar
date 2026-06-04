@@ -1,6 +1,6 @@
 """Permits list endpoint."""
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, asc
 from sqlalchemy.orm import joinedload
@@ -11,9 +11,25 @@ from ...core.redis import cache_get, cache_set
 from ...models.user import User
 from ...models.permit import Permit, PermitType
 from ...models.construction_object import ConstructionObject
-from ...schemas.permits import PermitSchema
+from ...schemas.permits import PermitSchema, PermitCreateSchema
 
 router = APIRouter(prefix="/permits", tags=["permits"])
+
+
+@router.post("", response_model=PermitSchema, status_code=201)
+async def create_permit(
+    body: PermitCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    obj = await db.get(ConstructionObject, body.object_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Об'єкт не знайдено")
+    permit = Permit(**body.model_dump())
+    db.add(permit)
+    await db.commit()
+    await db.refresh(permit)
+    return PermitSchema.model_validate(permit)
 
 
 class PermitListSchema(PermitSchema):

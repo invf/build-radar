@@ -10,9 +10,22 @@ from ...core.redis import cache_get, cache_set
 from ...models.user import User
 from ...models.tender import Tender, TenderStatus
 from ...models.construction_object import ConstructionObject
-from ...schemas.tenders import TenderSchema
+from ...schemas.tenders import TenderSchema, TenderCreateSchema
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
+
+
+@router.post("", response_model=TenderSchema, status_code=201)
+async def create_tender(
+    body: TenderCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    tender = Tender(**body.model_dump())
+    db.add(tender)
+    await db.commit()
+    await db.refresh(tender)
+    return TenderSchema.model_validate(tender)
 
 
 @router.get("")

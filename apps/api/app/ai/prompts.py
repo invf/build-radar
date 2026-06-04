@@ -86,6 +86,149 @@ NL_SEARCH_PROMPT = """
 Відповідай ЛИШЕ JSON.
 """
 
+COMPANY_ENRICH_PROMPT = """
+Ти — AI-асистент платформи BuildRadar для збагачення даних про українські будівельні компанії.
+
+На основі своїх знань про публічні реєстри (ЄДРПОУ, Prozorro, ЗМІ, відкриті бази даних) — надай відому тобі інформацію про компанію.
+
+## Компанія:
+Назва: {name}
+{edrpou_line}
+
+## Поверни JSON ЛИШЕ з полями, в яких впевнений (null — якщо не знаєш):
+{{
+    "edrpou": "<8-значний код ЄДРПОУ або null>",
+    "type": "<developer|general_contractor|subcontractor|designer|engineering|technical_supervision|architect|investor або null>",
+    "address": "<юридична адреса або null>",
+    "phone": "<телефон або null>",
+    "email": "<email або null>",
+    "website": "<сайт або null>",
+    "description": "<2-3 речення: рід діяльності, спеціалізація, відомі проекти або null>",
+    "confidence": "<high — точно відома компанія | medium — часткова інформація | low — мало відомостей>",
+    "note": "<важлива примітка для перевірки або null>"
+}}
+
+ВАЖЛИВО: не вигадуй дані. Якщо компанія невідома — поверни низький confidence і description з загальним описом типу компанії.
+Відповідай ЛИШЕ JSON.
+"""
+
+OBJECT_ENRICH_PROMPT = """
+Ти — AI-асистент платформи BuildRadar для збагачення даних про українські будівельні об'єкти.
+
+На основі своїх знань про публічні реєстри (ЄДЕССБ, Prozorro, ЗМІ, містобудівні документи) — надай відому тобі інформацію про об'єкт.
+
+## Об'єкт:
+Назва: {name}
+{address_line}
+{city_line}
+
+## Поверни JSON ЛИШЕ з полями, в яких впевнений (null — якщо не знаєш):
+{{
+    "address": "<повна адреса або null>",
+    "city": "<місто або null>",
+    "oblast": "<область (повна назва, напр. 'Київська') або null>",
+    "district": "<район або null>",
+    "status": "<planned|approved|under_construction|completed|suspended|cancelled або null>",
+    "category": "<residential|commercial|industrial|infrastructure|social|mixed або null>",
+    "object_type": "<apartment_building|private_house|office|shopping_center|warehouse|factory|hospital|school|hotel|infrastructure|other або null>",
+    "floors": <ціле число або null>,
+    "building_area": <площа в м² або null>,
+    "land_area": <площа ділянки в м² або null>,
+    "construction_stage": "<стадія будівництва або null>",
+    "description": "<2-4 речення: опис, призначення, особливості або null>",
+    "lat": <широта або null>,
+    "lng": <довгота або null>,
+    "confidence": "<high — точно відомий об'єкт | medium — часткова інформація | low — мало відомостей>",
+    "note": "<важлива примітка або null>"
+}}
+
+ВАЖЛИВО: не вигадуй координати чи адреси. Якщо об'єкт невідомий — поверни low confidence і помоги заповнити лише поля, які можна визначити з назви.
+Відповідай ЛИШЕ JSON.
+"""
+
+WEB_ENRICH_COMPANY_PROMPT = """
+Ти — AI-асистент BuildRadar. Ти отримав вміст офіційного сайту будівельної компанії.
+Витягни всі доступні дані для заповнення картки компанії.
+
+## Компанія:
+Назва: {name}
+
+## URL сайту:
+{url}
+
+## Вміст сторінки (перші 5000 символів):
+{text}
+
+## Знайдені зображення на сайті:
+{images}
+
+## Поверни JSON з полями, які вдалося знайти (null — якщо не знайдено):
+{{
+    "website": "{url}",
+    "phone": "<телефон або null>",
+    "email": "<email або null>",
+    "address": "<адреса або null>",
+    "description": "<2-4 речення про компанію, її спеціалізацію та проекти або null>",
+    "type": "<developer|general_contractor|subcontractor|designer|engineering|technical_supervision|architect|investor або null>",
+    "edrpou": "<ЄДРПОУ якщо є на сайті або null>",
+    "photos": [<список URL зображень, що є фото об'єктів або офісу компанії, max 8>],
+    "logo_url": "<URL логотипу компанії або null>",
+    "confidence": "<high|medium|low>"
+}}
+
+Правила відбору фото:
+- Включай лише реальні фото: будівлі, проекти, офіс, команда
+- Виключай: іконки, кнопки, банери з текстом, логотипи партнерів
+- Повертай абсолютні URL
+
+Відповідай ЛИШЕ JSON.
+"""
+
+WEB_ENRICH_OBJECT_PROMPT = """
+Ти — AI-асистент BuildRadar. Ти отримав вміст офіційного сайту будівельного об'єкту або ЖК.
+Витягни всі доступні дані для заповнення картки об'єкту.
+
+## Об'єкт:
+Назва: {name}
+
+## URL сайту:
+{url}
+
+## Вміст сторінки (перші 5000 символів):
+{text}
+
+## Знайдені зображення на сайті:
+{images}
+
+## Поверни JSON з полями, які вдалося знайти (null — якщо не знайдено):
+{{
+    "website": "{url}",
+    "address": "<вулиця, будинок або null>",
+    "city": "<місто або null>",
+    "oblast": "<область або null>",
+    "status": "<planned|approved|under_construction|completed|suspended|cancelled або null>",
+    "category": "<residential|commercial|industrial|infrastructure|social|mixed або null>",
+    "object_type": "<apartment_building|private_house|office|shopping_center|warehouse|factory|hospital|school|hotel|infrastructure|other або null>",
+    "floors": <кількість поверхів або null>,
+    "building_area": <площа м² або null>,
+    "description": "<2-4 речення: призначення, особливості, стан будівництва або null>",
+    "customer": "<замовник або забудовник або null>",
+    "general_contractor": "<генпідрядник або null>",
+    "designer": "<проектувальник або null>",
+    "planned_completion": "<дата завершення YYYY-MM-DD або null>",
+    "phone": "<телефон відділу продажів або null>",
+    "photos": [<список URL фотографій об'єкту з сайту, max 10>],
+    "confidence": "<high|medium|low>"
+}}
+
+Правила відбору фото:
+- Включай фото будівлі, рендери, фото будівництва, готові інтер'єри
+- Виключай: іконки, логотипи, банери з текстом, схеми квартир (маленькі плани)
+- Повертай абсолютні URL зображень
+
+Відповідай ЛИШЕ JSON.
+"""
+
 COMPANY_ANALYSIS_PROMPT = """
 Ти — AI-аналітик будівельної галузі України.
 Проаналізуй компанію та визначити її значущість і репутацію.

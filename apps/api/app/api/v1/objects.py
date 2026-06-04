@@ -31,11 +31,41 @@ from ...schemas.objects import (
     PaginatedObjectsResponse,
     AISearchResponse,
     MapPointSchema,
+    ObjectCreateSchema,
+    ObjectUpdateSchema,
 )
 from ...schemas.notes import ObjectNoteSchema
 from ...schemas.ai_analysis import AIAnalysisSchema
 
 router = APIRouter(prefix="/objects", tags=["objects"])
+
+
+@router.post("", response_model=ConstructionObjectListSchema, status_code=201)
+async def create_object(
+    body: ObjectCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    data = body.model_dump(exclude={"lat", "lng"})
+    if body.lat is not None and body.lng is not None:
+        from geoalchemy2 import WKTElement
+        data["coordinates"] = WKTElement(f"POINT({body.lng} {body.lat})", srid=4326)
+    obj = ConstructionObject(**data)
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+    return ConstructionObjectListSchema(
+        id=obj.id, name=obj.name, address=obj.address, city=obj.city,
+        oblast=obj.oblast, status=obj.status, category=obj.category,
+        object_type=obj.object_type, floors=obj.floors,
+        building_area=obj.building_area, ai_score=obj.ai_score,
+        ai_summary=obj.ai_summary, description=obj.description,
+        photos=obj.photos or [], customer=obj.customer,
+        general_contractor=obj.general_contractor, designer=obj.designer,
+        installer=obj.installer, source=obj.source,
+        created_at=obj.created_at, updated_at=obj.updated_at,
+        permits=[], tenders=[], notes_count=0,
+    )
 
 
 def build_filter_query(query, params: dict):
@@ -109,6 +139,7 @@ async def list_objects(
     min_ai_score: Optional[float] = Query(None),
     has_tenders: Optional[bool] = Query(None),
     has_permits: Optional[bool] = Query(None),
+    company_id: Optional[uuid.UUID] = Query(None),
     sort_by: str = Query("updated_at"),
     sort_order: str = Query("desc"),
     page: int = Query(1, ge=1),
@@ -124,6 +155,16 @@ async def list_objects(
     base_query = select(ConstructionObject)
     base_query = build_filter_query(base_query, params)
 
+    if company_id is not None:
+        base_query = base_query.where(
+            exists(
+                select(ObjectCompany.id).where(
+                    ObjectCompany.object_id == ConstructionObject.id,
+                    ObjectCompany.company_id == company_id,
+                )
+            )
+        )
+
     # Count
     count_query = select(func.count()).select_from(base_query.subquery())
     total = await db.scalar(count_query)
@@ -136,12 +177,26 @@ async def list_objects(
     else:
         base_query = base_query.order_by(sort_column.desc().nullslast())
 
-    # Paginate
+    # Paginate + eager-load relationships to avoid MissingGreenlet in async context
     offset = (page - 1) * page_size
-    base_query = base_query.offset(offset).limit(page_size)
+    base_query = (
+        base_query
+        .options(
+            selectinload(ConstructionObject.permits),
+            selectinload(ConstructionObject.tenders),
+        )
+        .offset(offset)
+        .limit(page_size)
+    )
 
     result = await db.execute(base_query)
     objects = result.scalars().all()
+
+    # Detach from session before model_validate — parse_geometry sets coordinates to a
+    # plain dict which SQLAlchemy would otherwise track as a dirty change and flush as
+    # UPDATE coordinates=ST_GeomFromEWKT(dict), causing a 500 on the next DB operation.
+    for o in objects:
+        db.expunge(o)
 
     return PaginatedObjectsResponse(
         items=[ConstructionObjectListSchema.model_validate(o) for o in objects],
@@ -230,6 +285,10 @@ async def search_objects(
             ConstructionObject.address.ilike(search_term),
             ConstructionObject.city.ilike(search_term),
             ConstructionObject.description.ilike(search_term),
+            ConstructionObject.customer.ilike(search_term),
+            ConstructionObject.general_contractor.ilike(search_term),
+            ConstructionObject.designer.ilike(search_term),
+            ConstructionObject.installer.ilike(search_term),
         )
     ).order_by(ConstructionObject.updated_at.desc())
 
@@ -435,3 +494,52 @@ async def remove_favorite(
     if existing:
         await db.delete(existing)
         await db.commit()
+
+
+@router.patch("/{object_id}", response_model=ConstructionObjectListSchema)
+async def update_object(
+    object_id: uuid.UUID,
+    body: ObjectUpdateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    obj = await db.get(ConstructionObject, object_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Об'єкт не знайдено")
+
+    update_data = body.model_dump(exclude_unset=True, exclude={"lat", "lng"})
+
+    if body.lat is not None and body.lng is not None:
+        from geoalchemy2 import WKTElement
+        update_data["coordinates"] = WKTElement(f"POINT({body.lng} {body.lat})", srid=4326)
+
+    for field, value in update_data.items():
+        setattr(obj, field, value)
+
+    await db.commit()
+    await db.refresh(obj)
+    return ConstructionObjectListSchema(
+        id=obj.id, name=obj.name, address=obj.address, city=obj.city,
+        oblast=obj.oblast, status=obj.status, category=obj.category,
+        object_type=obj.object_type, floors=obj.floors,
+        building_area=obj.building_area, ai_score=obj.ai_score,
+        ai_summary=obj.ai_summary, description=obj.description,
+        photos=obj.photos or [], customer=obj.customer,
+        general_contractor=obj.general_contractor, designer=obj.designer,
+        installer=obj.installer, source=obj.source,
+        created_at=obj.created_at, updated_at=obj.updated_at,
+        permits=[], tenders=[], notes_count=0,
+    )
+
+
+@router.delete("/{object_id}", status_code=204)
+async def delete_object(
+    object_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    obj = await db.get(ConstructionObject, object_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Об'єкт не знайдено")
+    await db.delete(obj)
+    await db.commit()

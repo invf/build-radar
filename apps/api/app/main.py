@@ -2,17 +2,19 @@
 import logging
 from contextlib import asynccontextmanager
 
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
 from . import models  # noqa: F401 — registers all ORM mappers before first query
-from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers
+from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers, ai_enrich, upload, search, smart_search
 
 # Configure logging
 logging.basicConfig(
@@ -97,6 +99,15 @@ app.include_router(tenders.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(saved_searches.router, prefix="/api/v1")
 app.include_router(admin_parsers.router, prefix="/api/v1")
+app.include_router(ai_enrich.router, prefix="/api/v1")
+app.include_router(upload.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
+app.include_router(smart_search.router, prefix="/api/v1")
+
+# Static files (uploaded images)
+_uploads_dir = Path(__file__).resolve().parent.parent / "static" / "uploads"
+_uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_uploads_dir.parent)), name="static")
 
 
 @app.get("/health")
