@@ -104,7 +104,7 @@ export default function MigratePage() {
     <Loader2 className="h-4 w-4 text-zinc-400 animate-spin shrink-0" />
 
   return (
-    <div className="p-6 max-w-2xl space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 max-w-2xl space-y-4 md:space-y-6 animate-fade-in">
       <div>
         <h1 className="text-xl font-semibold text-zinc-100 flex items-center gap-2">
           <Database className="h-5 w-5 text-brand-400" />

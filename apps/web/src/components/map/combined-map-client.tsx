@@ -117,7 +117,7 @@ function buildMarkers(orders: Order[], mapPoints: MapPoint[]): MarkerInfo[] {
   // 2. Add standalone order markers (orders with lat/lng not already covered by an object)
   orders.forEach((o) => {
     if (!o.lat || !o.lng) return
-    if (usedNames.has(o.object_name)) return // already shown via object marker
+    if (usedNames.has(o.object_name ?? '')) return // already shown via object marker
     result.push({
       lat: o.lat,
       lng: o.lng,
@@ -126,7 +126,7 @@ function buildMarkers(orders: Order[], mapPoints: MapPoint[]): MarkerInfo[] {
       category: 'order',
       statusLabel: ORDER_LABELS[o.status],
       customer: o.customer || undefined,
-      address: o.address,
+      address: o.address ?? undefined,
       orderStatus: o.status,
     })
   })
@@ -148,7 +148,13 @@ function buildPopup(m: MarkerInfo): string {
     </div>`
 
   let html = `
-    <div style="font-family:system-ui,sans-serif;min-width:190px;max-width:260px">
+    <div style="font-family:system-ui,sans-serif;min-width:190px;max-width:260px;position:relative;padding-right:20px">
+      <button class="br-popup-close" title="Закрити" style="
+        position:absolute;top:-2px;right:-4px;
+        background:rgba(255,255,255,0.12);border:none;border-radius:4px;
+        color:#a1a1aa;cursor:pointer;font-size:15px;line-height:1;
+        padding:2px 6px;transition:background 0.15s;
+      ">×</button>
       <p style="font-weight:600;color:#f4f4f5;margin:0 0 6px;font-size:13px;line-height:1.3">
         ${m.name}
       </p>`
@@ -230,6 +236,11 @@ export function CombinedMapClient({
         maxZoom: 19,
       }).addTo(map)
 
+      map.on('popupopen', (e: L.PopupEvent) => {
+        const btn = e.popup.getElement()?.querySelector<HTMLElement>('.br-popup-close')
+        if (btn) btn.addEventListener('click', () => map.closePopup(), { once: true })
+      })
+
       mapInstanceRef.current = map
       setIsMapReady(true)
     }
@@ -286,9 +297,10 @@ export function CombinedMapClient({
         })
 
         const marker = L.marker([m.lat, m.lng], { icon })
-        marker.bindPopup(buildPopup(m), { maxWidth: 280, className: 'buildradar-popup', autoPan: false })
+        marker.bindPopup(buildPopup(m), { maxWidth: 280, className: 'buildradar-popup', closeButton: true })
         marker.on('mouseover', function (this: typeof marker) { this.openPopup() })
         marker.on('mouseout', function (this: typeof marker) { this.closePopup() })
+        marker.on('click', function (this: typeof marker) { this.openPopup() })
         marker.addTo(group)
       })
 

@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ShoppingCart, Search, Clock, CheckCircle, XCircle,
-  ExternalLink, Plus, Loader2, CheckCheck, AlertCircle,
+  ExternalLink, Trash2, Loader2, Globe, TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api/client'
-import { prozorroApi, type ProzorroTender } from '@/lib/api/prozorro'
+import { tendersApi } from '@/lib/api/tenders'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatDate, formatCurrency } from '@/lib/utils/format'
 import type { Tender, TenderStatus } from '@/types'
 import { TenderFormModal } from '@/components/tenders/tender-form-modal'
+import { SearchPageInner } from '../search/search-inner'
 
 interface TenderWithObject extends Tender {
   object_name?: string
@@ -31,18 +32,79 @@ interface TendersResponse {
   pages: number
 }
 
-const STATUS_CONFIG: Record<TenderStatus, { label: string; color: string; icon: React.ElementType }> = {
-  active: { label: 'Активний', color: 'border-green-500/30 text-green-400', icon: Clock },
-  complete: { label: 'Завершено', color: 'border-blue-500/30 text-blue-400', icon: CheckCircle },
-  cancelled: { label: 'Скасовано', color: 'border-red-500/30 text-red-400', icon: XCircle },
-  unsuccessful: { label: 'Не відбувся', color: 'border-zinc-500/30 text-zinc-400', icon: XCircle },
+interface IntlStats {
+  total: number
+  high_priority: number
+  medium_priority: number
+  low_priority: number
+  total_budget_usd: number
+  donors: string[]
+  countries: string[]
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  active: 'Активний',
-  complete: 'Завершено',
-  cancelled: 'Скасовано',
-  unsuccessful: 'Не відбувся',
+const STATUS_CONFIG: Record<TenderStatus, { label: string; color: string; icon: React.ElementType }> = {
+  active:       { label: 'Активний',    color: 'border-green-500/30 text-green-400',  icon: Clock        },
+  complete:     { label: 'Завершено',   color: 'border-blue-500/30 text-blue-400',    icon: CheckCircle  },
+  cancelled:    { label: 'Скасовано',   color: 'border-red-500/30 text-red-400',      icon: XCircle      },
+  unsuccessful: { label: 'Не відбувся', color: 'border-zinc-500/30 text-zinc-400',   icon: XCircle      },
+}
+
+// ── Stats Bar ─────────────────────────────────────────────────────────────────
+
+function TendersStatsBar() {
+  const { data: intlStats } = useQuery({
+    queryKey: ['intl-stats'],
+    queryFn: () => apiFetch<IntlStats>('/international/stats'),
+    staleTime: 120_000,
+  })
+
+  const { data: systemData } = useQuery({
+    queryKey: ['tenders-count'],
+    queryFn: () => apiFetch<TendersResponse>('/tenders', { params: { page: 1, page_size: 1 } }),
+    staleTime: 120_000,
+  })
+
+  const intlBudgetM = intlStats?.total_budget_usd
+    ? `$${(intlStats.total_budget_usd / 1_000_000).toFixed(0)}M`
+    : '—'
+
+  const stats = [
+    {
+      label: 'Тендери в системі',
+      value: systemData?.total != null ? String(systemData.total) : '—',
+      cls: 'text-zinc-100',
+      icon: ShoppingCart,
+    },
+    {
+      label: 'Міжнародні тендери',
+      value: intlStats?.total != null ? String(intlStats.total) : '—',
+      cls: 'text-blue-400',
+      icon: Globe,
+    },
+    {
+      label: 'Високий пріоритет',
+      value: intlStats?.high_priority != null ? String(intlStats.high_priority) : '—',
+      cls: 'text-green-400',
+      icon: TrendingUp,
+    },
+    {
+      label: 'Бюджет міжнар.',
+      value: intlBudgetM,
+      cls: 'text-zinc-100',
+      icon: Globe,
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-xl border border-zinc-800 overflow-hidden bg-zinc-800">
+      {stats.map((s) => (
+        <div key={s.label} className="bg-zinc-900/80 px-4 py-3 flex flex-col gap-0.5">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider leading-none">{s.label}</span>
+          <span className={`text-lg font-semibold leading-tight ${s.cls}`}>{s.value}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ── Вкладка 1: Тендери в системі ─────────────────────────────────────────────
@@ -51,6 +113,8 @@ function SystemTendersTab() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<string>('all')
   const [page, setPage] = useState(1)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['tenders', search, status, page],
@@ -67,11 +131,19 @@ function SystemTendersTab() {
       }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => tendersApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tenders'] })
+      setConfirmDeleteId(null)
+    },
+  })
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 flex-1 flex-wrap">
-          <div className="relative min-w-48 max-w-sm flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
             <Input
               placeholder="Пошук за назвою..."
@@ -81,7 +153,7 @@ function SystemTendersTab() {
             />
           </div>
           <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="Статус" />
             </SelectTrigger>
             <SelectContent>
@@ -96,7 +168,9 @@ function SystemTendersTab() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        </div>
       ) : (
         <>
           <p className="text-xs text-zinc-600">{data?.total?.toLocaleString('uk-UA') ?? 0} тендерів</p>
@@ -104,16 +178,50 @@ function SystemTendersTab() {
             {data?.items.map((tender) => {
               const cfg = STATUS_CONFIG[tender.status]
               const Icon = cfg.icon
+              const isIntl = !!(tender.source && tender.source !== 'prozorro')
+              const externalUrl = isIntl
+                ? (tender.source_url ?? undefined)
+                : `https://prozorro.gov.ua/tender/${tender.prozorro_id}`
+              const isDeleting = deleteMutation.isPending && confirmDeleteId === tender.id
+              const isConfirming = confirmDeleteId === tender.id && !isDeleting
+
               return (
                 <div key={tender.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 hover:border-zinc-700 transition-all">
                   <div className="flex items-start justify-between gap-3">
+                    {/* Left: info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <Badge variant="outline" className={`text-xs ${cfg.color} gap-1`}>
                           <Icon className="h-3 w-3" />
                           {cfg.label}
                         </Badge>
-                        <span className="text-xs text-zinc-600 font-mono">{tender.prozorro_id}</span>
+                        {isIntl ? (
+                          <>
+                            <Badge variant="outline" className="text-xs text-blue-400 border-blue-500/30 gap-1">
+                              <Globe className="h-3 w-3" />
+                              {tender.source}
+                            </Badge>
+                            {tender.country && (
+                              <span className="text-xs text-zinc-500">{tender.country}</span>
+                            )}
+                            {tender.donor && (
+                              <span className="text-xs text-zinc-500">{tender.donor}</span>
+                            )}
+                            {tender.sector && (
+                              <Badge variant="outline" className="text-xs text-zinc-500 border-zinc-700">{tender.sector}</Badge>
+                            )}
+                          </>
+                        ) : (
+                          <a
+                            href={`https://prozorro.gov.ua/tender/${tender.prozorro_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-zinc-600 font-mono hover:text-brand-400 transition-colors"
+                            title="Відкрити на Prozorro"
+                          >
+                            {tender.prozorro_id}
+                          </a>
+                        )}
                       </div>
                       <p className="text-sm text-zinc-200 line-clamp-2 leading-relaxed">{tender.title}</p>
                       <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -123,15 +231,76 @@ function SystemTendersTab() {
                           </Link>
                         )}
                         {tender.procuring_entity && (
-                          <span className="text-xs text-zinc-500">{tender.procuring_entity}</span>
+                          <span className="text-xs text-zinc-500 truncate max-w-xs">{tender.procuring_entity}</span>
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      {tender.amount !== undefined && tender.amount > 0 && (
-                        <p className="text-sm font-semibold text-zinc-100">{formatCurrency(tender.amount, tender.currency || 'UAH')}</p>
-                      )}
-                      {tender.deadline && <p className="text-xs text-zinc-500 mt-0.5">до {formatDate(tender.deadline)}</p>}
+
+                    {/* Right: amount + actions */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="text-right">
+                        {tender.amount !== undefined && tender.amount > 0 && (
+                          <p className="text-sm font-semibold text-zinc-100">
+                            {formatCurrency(tender.amount, tender.currency || 'UAH')}
+                          </p>
+                        )}
+                        {tender.deadline && (
+                          <p className="text-xs text-zinc-500 mt-0.5">до {formatDate(tender.deadline)}</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {/* External link */}
+                        {externalUrl ? (
+                          <a
+                            href={externalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+                            title={isIntl ? `Відкрити на ${tender.source}` : 'Відкрити на Prozorro'}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : (
+                          <span className="p-1.5 rounded text-zinc-700 cursor-not-allowed" title="Посилання недоступне">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+
+                        {/* Edit */}
+                        <TenderFormModal tender={tender} />
+
+                        {/* Delete */}
+                        {isConfirming ? (
+                          <div className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/5 px-2 py-1">
+                            <span className="text-[11px] text-red-400 whitespace-nowrap">Видалити?</span>
+                            <button
+                              onClick={() => deleteMutation.mutate(tender.id)}
+                              className="text-[11px] text-red-400 hover:text-red-300 font-medium transition-colors px-1"
+                            >
+                              Так
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+                            >
+                              Ні
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(tender.id)}
+                            disabled={isDeleting}
+                            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Видалити"
+                          >
+                            {isDeleting
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />
+                            }
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -159,276 +328,15 @@ function SystemTendersTab() {
   )
 }
 
-// ── Вкладка 2: Пошук Prozorro ─────────────────────────────────────────────────
-
-const KEYWORD_PRESETS = [
-  'теплообмінник', 'насоси', 'котел', 'вентиляція', 'кондиціонер',
-  'опалення', 'трубопровід', 'ліфт', 'електромонтаж', 'вікна',
-]
-
-const CPV_PRESETS = [
-  { label: 'Теплообмінники (42500000)', value: '42500000' },
-  { label: 'Насоси (42122000)', value: '42122000' },
-  { label: 'Котли (44621000)', value: '44621000' },
-  { label: 'Опалення/Вентиляція (45331000)', value: '45331000' },
-  { label: 'Будівельні роботи (45000000)', value: '45000000' },
-  { label: 'Ліфти (42416000)', value: '42416000' },
-  { label: 'Вікна/двері (44220000)', value: '44220000' },
-]
-
-function ProzorroSearchTab() {
-  const qc = useQueryClient()
-  const [keyword, setKeyword] = useState('')
-  const [cpv, setCpv] = useState('')
-  const [statusFilter, setStatusFilter] = useState('active')
-  const [submitted, setSubmitted] = useState(false)
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
-  const [savingId, setSavingId] = useState<string | null>(null)
-
-  const { data: results = [], isLoading, error } = useQuery({
-    queryKey: ['prozorro-search', keyword, cpv, statusFilter],
-    queryFn: () => prozorroApi.search({
-      q: keyword || undefined,
-      cpv: cpv || undefined,
-      status: statusFilter !== 'all' ? statusFilter : undefined,
-      limit: 50,
-    }),
-    enabled: submitted && (!!keyword || !!cpv),
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!keyword && !cpv) return
-    setSubmitted(true)
-  }
-
-  const handlePreset = (kw: string) => { setKeyword(kw); setSubmitted(false) }
-  const handleCpvPreset = (code: string) => { setCpv(code); setSubmitted(false) }
-
-  const saveTender = async (t: ProzorroTender) => {
-    setSavingId(t.prozorro_id)
-    try {
-      await apiFetch('/tenders', {
-        method: 'POST',
-        data: {
-          prozorro_id: t.prozorro_id,
-          title: t.title,
-          status: t.status,
-          amount: t.amount,
-          currency: t.currency,
-          deadline: t.deadline,
-          procuring_entity: t.procuring_entity,
-          procuring_entity_edrpou: t.procuring_entity_edrpou,
-        },
-      })
-      setSavedIds(prev => new Set([...prev, t.prozorro_id]))
-      qc.invalidateQueries({ queryKey: ['tenders'] })
-    } catch {
-      // likely duplicate — mark as already saved
-      setSavedIds(prev => new Set([...prev, t.prozorro_id]))
-    } finally {
-      setSavingId(null)
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Search form */}
-      <form onSubmit={handleSearch} className="space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Ключове слово</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-              <Input
-                placeholder="теплообмінник, насоси, котел..."
-                value={keyword}
-                onChange={(e) => { setKeyword(e.target.value); setSubmitted(false) }}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {KEYWORD_PRESETS.map((kw) => (
-                <button key={kw} type="button" onClick={() => handlePreset(kw)}
-                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${keyword === kw ? 'border-brand-500/50 bg-brand-500/10 text-brand-400' : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                  {kw}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider">CPV / DK021 код</label>
-            <Input
-              placeholder="45331000, 42122000..."
-              value={cpv}
-              onChange={(e) => { setCpv(e.target.value); setSubmitted(false) }}
-            />
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {CPV_PRESETS.map((p) => (
-                <button key={p.value} type="button" onClick={() => handleCpvPreset(p.value)}
-                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${cpv === p.value ? 'border-brand-500/50 bg-brand-500/10 text-brand-400' : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Активні</SelectItem>
-              <SelectItem value="all">Всі статуси</SelectItem>
-              <SelectItem value="complete">Завершені</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button type="submit" variant="brand" disabled={(!keyword && !cpv) || isLoading} className="gap-2">
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            {isLoading ? 'Пошук...' : 'Знайти'}
-          </Button>
-
-          {results.length > 0 && (
-            <span className="text-sm text-zinc-500">{results.length} результатів</span>
-          )}
-        </div>
-      </form>
-
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-400">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>
-            {(() => {
-              const status = (error as { response?: { status?: number; data?: { detail?: string } } })?.response?.status
-              const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-              if (status === 401 || status === 403) return 'Сесія закінчилась — оновіть сторінку (F5) і увійдіть знову.'
-              if (detail) return detail
-              return 'Не вдалось виконати запит. Спробуйте пізніше.'
-            })()}
-          </span>
-        </div>
-      )}
-
-      {/* Results table */}
-      {submitted && !isLoading && results.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900/60">
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Назва тендеру</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Організатор</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Сума</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Дедлайн</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Статус</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">CPV</th>
-                <th className="px-3 py-3 w-28" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/60">
-              {results.map((t) => {
-                const isSaved = savedIds.has(t.prozorro_id)
-                const isSaving = savingId === t.prozorro_id
-                return (
-                  <tr key={t.prozorro_id} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-4 py-3 max-w-sm">
-                      <p className="text-zinc-200 line-clamp-2 text-sm leading-snug">{t.title}</p>
-                      {t.city && <p className="text-xs text-zinc-500 mt-0.5">{[t.city, t.oblast].filter(Boolean).join(', ')}</p>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[200px]">
-                      <p className="text-zinc-300 text-xs line-clamp-2">{t.procuring_entity || '—'}</p>
-                      {t.procuring_entity_edrpou && (
-                        <p className="text-zinc-600 text-[10px] font-mono mt-0.5">{t.procuring_entity_edrpou}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {t.amount ? (
-                        <span className="text-zinc-100 font-medium text-xs">{formatCurrency(t.amount, t.currency)}</span>
-                      ) : <span className="text-zinc-600">—</span>}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {t.deadline ? (
-                        <span className="text-zinc-400 text-xs">{formatDate(t.deadline)}</span>
-                      ) : <span className="text-zinc-600">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                        t.status === 'active' ? 'border-green-500/30 text-green-400' :
-                        t.status === 'complete' ? 'border-blue-500/30 text-blue-400' :
-                        'border-zinc-700 text-zinc-500'
-                      }`}>
-                        {STATUS_LABEL[t.status] || t.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-[120px]">
-                        {t.cpv_codes.slice(0, 2).map((c) => (
-                          <span key={c} className="text-[10px] font-mono text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">{c.split('-')[0]}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1">
-                        <a href={t.prozorro_url} target="_blank" rel="noopener noreferrer"
-                          className="p-1.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors" title="Відкрити на Prozorro">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                        <Button
-                          size="sm"
-                          variant={isSaved ? 'ghost' : 'outline'}
-                          disabled={isSaved || isSaving}
-                          onClick={() => saveTender(t)}
-                          className={`h-7 px-2 text-xs gap-1 ${isSaved ? 'text-green-400 border-green-500/30' : 'border-zinc-700 text-zinc-300 hover:border-brand-500/50 hover:text-brand-400'}`}
-                          title={isSaved ? 'Вже додано' : 'Додати до тендерів'}
-                        >
-                          {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> :
-                           isSaved ? <CheckCheck className="h-3 w-3" /> :
-                           <Plus className="h-3 w-3" />}
-                          {isSaved ? 'Додано' : 'Додати'}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {submitted && !isLoading && results.length === 0 && !error && (
-        <div className="text-center py-16 text-zinc-600">
-          <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          <p className="text-sm">Нічого не знайдено. Спробуйте інше ключове слово або CPV код.</p>
-        </div>
-      )}
-
-      {!submitted && (
-        <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-6 text-center text-zinc-600">
-          <Search className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Введіть ключове слово або CPV код і натисніть «Знайти»</p>
-          <p className="text-xs mt-1 opacity-60">Пошук виконується напряму по реєстру Prozorro</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function TendersPage() {
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Тендери</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Prozorro — будівництво та постачання</p>
+          <p className="text-sm text-zinc-500 mt-0.5">Prozorro · Міжнародні донори · Управління</p>
         </div>
         <a href="https://prozorro.gov.ua" target="_blank" rel="noopener noreferrer"
           className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1">
@@ -436,15 +344,21 @@ export default function TendersPage() {
         </a>
       </div>
 
+      <TendersStatsBar />
+
       <Tabs defaultValue="system" className="space-y-5">
         <TabsList>
           <TabsTrigger value="system">
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
             Тендери в системі
           </TabsTrigger>
-          <TabsTrigger value="search">
+          <TabsTrigger value="prozorro">
             <Search className="h-3.5 w-3.5 mr-1.5" />
-            Пошук Prozorro
+            Тендери Prozorro
+          </TabsTrigger>
+          <TabsTrigger value="international">
+            <Globe className="h-3.5 w-3.5 mr-1.5" />
+            Міжнародні тендери
           </TabsTrigger>
         </TabsList>
 
@@ -452,8 +366,12 @@ export default function TendersPage() {
           <SystemTendersTab />
         </TabsContent>
 
-        <TabsContent value="search">
-          <ProzorroSearchTab />
+        <TabsContent value="prozorro">
+          <SearchPageInner initialQ="" basePath="/tenders" showHeader={false} />
+        </TabsContent>
+
+        <TabsContent value="international">
+          <SearchPageInner initialQ="" basePath="/tenders" showHeader={false} source="international" />
         </TabsContent>
       </Tabs>
     </div>

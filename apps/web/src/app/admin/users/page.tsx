@@ -72,8 +72,8 @@ export default function AdminUsersPage() {
   })
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100 flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -195,7 +195,7 @@ export default function AdminUsersPage() {
 
       {/* Invite dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-brand-400" />

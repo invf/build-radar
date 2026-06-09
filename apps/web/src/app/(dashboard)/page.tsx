@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Building2,
   TrendingUp,
-  FileText,
   ShoppingCart,
   Zap,
   ArrowRight,
@@ -32,7 +31,7 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -100,20 +99,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Secondary stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
           <p className="text-xs text-zinc-500">Будується</p>
           <p className="text-xl font-bold text-yellow-400 mt-1">
             {isLoading ? <Skeleton className="h-7 w-16" /> : (stats?.under_construction ?? 0).toLocaleString('uk-UA')}
           </p>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
-          <p className="text-xs text-zinc-500">Дозволи (тижень)</p>
-          <p className="text-xl font-bold text-blue-400 mt-1">
-            {isLoading ? <Skeleton className="h-7 w-16" /> : (stats?.new_permits_week ?? 0).toLocaleString('uk-UA')}
-          </p>
-        </div>
-        <div className="col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
+        <div className="sm:col-span-3 rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
           <p className="text-xs text-zinc-500 mb-2">Швидкі дії</p>
           <div className="flex gap-2 flex-wrap">
             <Link href="/objects?status=under_construction">
@@ -126,12 +119,6 @@ export default function DashboardPage() {
               <Button variant="outline" size="sm" className="border-zinc-700 text-xs">
                 <ShoppingCart className="h-3 w-3" />
                 Тендери
-              </Button>
-            </Link>
-            <Link href="/permits">
-              <Button variant="outline" size="sm" className="border-zinc-700 text-xs">
-                <FileText className="h-3 w-3" />
-                Дозволи
               </Button>
             </Link>
           </div>

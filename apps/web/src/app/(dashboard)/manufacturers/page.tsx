@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Factory, Search, Pencil, Trash2, Plus, X, Database } from 'lucide-react'
-import Link from 'next/link'
+import { Factory, Search, Pencil, Trash2, Plus, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { manufacturersApi, type Manufacturer } from '@/lib/api/manufacturers'
@@ -31,7 +30,7 @@ function ManufacturerCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-100" onClick={() => onEdit(manufacturer)} title="Редагувати">
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -58,31 +57,6 @@ function ManufacturerCard({
   )
 }
 
-function LocalDataBanner() {
-  const [hasLocal, setHasLocal] = useState(false)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('buildradar-manufacturers')
-      if (!raw) return
-      const items = JSON.parse(raw)?.state?.manufacturers ?? []
-      if (items.length > 0) setHasLocal(true)
-    } catch { /* ignore */ }
-  }, [])
-  if (!hasLocal) return null
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-950/20 px-4 py-3 text-sm">
-      <Database className="h-4 w-4 text-yellow-400 shrink-0" />
-      <span className="text-yellow-200 flex-1">
-        Знайдено виробників у локальному сховищі. Перенесіть їх у базу даних.
-      </span>
-      <Link href="/settings/migrate">
-        <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-950/40 shrink-0">
-          Мігрувати
-        </Button>
-      </Link>
-    </div>
-  )
-}
 
 export default function ManufacturersPage() {
   const qc = useQueryClient()
@@ -107,8 +81,7 @@ export default function ManufacturersPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
-      <LocalDataBanner />
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Виробництво</h1>

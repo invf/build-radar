@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, List, Map as MapIcon, Download, SortAsc,
-  MapPin, Building2, FileText, ShoppingCart, ChevronLeft, ChevronRight,
+  MapPin, Building2, ShoppingCart, ChevronLeft, ChevronRight,
   Image as ImageIcon, Pencil, ExternalLink, Globe, Sparkles, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -42,7 +42,7 @@ function ObjectQuickViewModal({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Photo */}
         <div className="relative w-full h-56 bg-zinc-800 shrink-0">
           {photos.length > 0 ? (
@@ -151,20 +151,12 @@ function ObjectQuickViewModal({
             </div>
           )}
 
-          {((obj.permits?.length ?? 0) > 0 || (obj.tenders?.length ?? 0) > 0) && (
+          {(obj.tenders?.length ?? 0) > 0 && (
             <div className="flex gap-3">
-              {(obj.permits?.length ?? 0) > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700">
-                  <FileText className="h-3.5 w-3.5" />
-                  {obj.permits!.length} дозвол{obj.permits!.length === 1 ? '' : 'ів'}
-                </span>
-              )}
-              {(obj.tenders?.length ?? 0) > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20">
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  {obj.tenders!.length} тендер{obj.tenders!.length === 1 ? '' : 'ів'}
-                </span>
-              )}
+              <span className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20">
+                <ShoppingCart className="h-3.5 w-3.5" />
+                {obj.tenders!.length} тендер{obj.tenders!.length === 1 ? '' : 'ів'}
+              </span>
             </div>
           )}
 
@@ -311,9 +303,9 @@ export default function ObjectsPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Будівельні об&apos;єкти</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
@@ -321,7 +313,7 @@ export default function ObjectsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -411,8 +403,8 @@ export default function ObjectsPage() {
       )}
 
       {/* Search + Sort */}
-      <div className={cn('flex items-center gap-3', isAiMode && 'opacity-40 pointer-events-none')}>
-        <div className="relative flex-1 max-w-sm">
+      <div className={cn('flex flex-col sm:flex-row items-stretch sm:items-center gap-3', isAiMode && 'opacity-40 pointer-events-none')}>
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             placeholder="Пошук за назвою, адресою..."
@@ -421,10 +413,10 @@ export default function ObjectsPage() {
             className="pl-9"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <SortAsc className="h-4 w-4 text-zinc-500" />
+        <div className="flex items-center gap-2 shrink-0">
+          <SortAsc className="hidden sm:block h-4 w-4 text-zinc-500" />
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-full sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

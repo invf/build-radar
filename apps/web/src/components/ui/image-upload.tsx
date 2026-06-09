@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Camera, X, Loader2 } from 'lucide-react'
+import { Camera, ImageIcon, X, Loader2 } from 'lucide-react'
 import { uploadImage } from '@/lib/api/upload'
 import { cn } from '@/lib/utils/cn'
 
@@ -28,14 +28,10 @@ export function ImageUpload({
   placeholder,
   className,
 }: ImageUploadProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const handleClick = () => {
-    setError('')
-    inputRef.current?.click()
-  }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -58,43 +54,58 @@ export function ImageUpload({
       setError(msg)
     } finally {
       setLoading(false)
-      if (inputRef.current) inputRef.current.value = ''
+      if (galleryRef.current) galleryRef.current.value = ''
+      if (cameraRef.current) cameraRef.current.value = ''
     }
   }
 
+  const rounded = shape === 'circle' ? 'rounded-full' : 'rounded-xl'
+
   return (
     <div className={cn('relative group inline-block', className)}>
-      <div
-        onClick={handleClick}
-        className={cn(
-          SIZE_MAP[size],
-          shape === 'circle' ? 'rounded-full' : 'rounded-xl',
-          'relative overflow-hidden cursor-pointer border border-zinc-700 bg-zinc-800',
-          'flex items-center justify-center transition-all',
-          'hover:border-zinc-500',
-        )}
-      >
+      <div className={cn(SIZE_MAP[size], rounded, 'relative overflow-hidden border border-zinc-700 bg-zinc-800')}>
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex flex-col items-center gap-1 text-zinc-600">
+          <div className="h-full w-full flex flex-col items-center justify-center gap-1 text-zinc-600">
             <Camera className="h-5 w-5" />
             {placeholder && <span className="text-[10px] text-center px-1 leading-tight">{placeholder}</span>}
           </div>
         )}
 
-        {/* Overlay on hover */}
-        <div className={cn(
-          'absolute inset-0 flex items-center justify-center',
-          shape === 'circle' ? 'rounded-full' : 'rounded-xl',
-          'bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity',
-        )}>
-          {loading
-            ? <Loader2 className="h-5 w-5 text-white animate-spin" />
-            : <Camera className="h-5 w-5 text-white" />
-          }
-        </div>
+        {/* Loading overlay */}
+        {loading && (
+          <div className={cn('absolute inset-0 flex items-center justify-center bg-black/60', rounded)}>
+            <Loader2 className="h-5 w-5 text-white animate-spin" />
+          </div>
+        )}
+
+        {/* Action buttons overlay — always visible on touch, hover on desktop */}
+        {!loading && (
+          <div className={cn(
+            'absolute inset-0 flex items-end justify-center gap-2 pb-2',
+            rounded,
+            'bg-black/50 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity',
+          )}>
+            <button
+              type="button"
+              title="Вибрати з галереї"
+              onClick={() => { setError(''); galleryRef.current?.click() }}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 transition-colors"
+            >
+              <ImageIcon className="h-3.5 w-3.5 text-white" />
+            </button>
+            <button
+              type="button"
+              title="Сфотографувати"
+              onClick={() => { setError(''); cameraRef.current?.click() }}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 hover:bg-white/40 transition-colors"
+            >
+              <Camera className="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Clear button */}
@@ -111,12 +122,23 @@ export function ImageUpload({
         </button>
       )}
 
-      {error && <p className="text-[10px] text-red-400 mt-1 text-center">{error}</p>}
+      {error && <p className="text-[10px] text-red-400 mt-1 text-center max-w-[theme(spacing.24)]">{error}</p>}
 
+      {/* Gallery picker */}
       <input
-        ref={inputRef}
+        ref={galleryRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFile}
+      />
+
+      {/* Camera capture */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFile}
       />

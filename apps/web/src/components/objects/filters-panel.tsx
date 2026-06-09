@@ -203,15 +203,6 @@ export function FiltersPanel() {
                   />
                   <span className="text-sm text-zinc-400">Є тендери</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="rounded border-zinc-700"
-                    checked={filters.has_permits || false}
-                    onChange={(e) => updateFilter('has_permits', e.target.checked || undefined)}
-                  />
-                  <span className="text-sm text-zinc-400">Є дозволи</span>
-                </label>
               </div>
             </div>
           </div>

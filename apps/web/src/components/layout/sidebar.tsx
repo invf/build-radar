@@ -6,21 +6,17 @@ import {
   LayoutDashboard,
   Building2,
   Map,
-  Search,
-  Bell,
   Settings,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Building,
-  FileText,
   ShoppingCart,
   BarChart3,
   Shield,
-  Bookmark,
-  Zap,
   ClipboardList,
   Factory,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { useAuthStore } from '@/stores/auth'
@@ -35,17 +31,13 @@ const navigation = [
   { name: 'Мапа', href: '/map', icon: Map },
   { name: 'Компанії', href: '/companies', icon: Building },
   { name: 'Виробництво', href: '/manufacturers', icon: Factory },
-  { name: 'Дозволи', href: '/permits', icon: FileText },
   { name: 'Тендери', href: '/tenders', icon: ShoppingCart },
-  { name: 'Пошук', href: '/search', icon: Search },
+  { name: 'B2B Контакти', href: '/contacts', icon: Users },
   { name: 'Аналітика', href: '/analytics', icon: BarChart3 },
-  { name: 'Збережені', href: '/settings/saved', icon: Bookmark },
-  { name: 'Сповіщення', href: '/alerts', icon: Bell },
 ]
 
 const adminNavigation = [
   { name: 'Адмін панель', href: '/admin', icon: Shield },
-  { name: 'Парсери', href: '/admin/parsers', icon: Zap },
 ]
 
 interface SidebarProps {
@@ -100,7 +92,7 @@ export function Sidebar({ className }: SidebarProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
               isActive(item.href)
                 ? 'bg-brand-600/10 text-brand-400 border border-brand-600/20'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100',
@@ -130,7 +122,7 @@ export function Sidebar({ className }: SidebarProps) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                   isActive(item.href)
                     ? 'bg-purple-600/10 text-purple-400 border border-purple-600/20'
                     : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100',

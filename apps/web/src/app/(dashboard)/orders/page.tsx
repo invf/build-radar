@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { format } from 'date-fns'
-import { Trash2, CheckSquare, RotateCcw, Pencil, Plus, MapPin, Database } from 'lucide-react'
+import { Trash2, CheckSquare, RotateCcw, Pencil, Plus, MapPin, Calendar, Building2, Package, Factory } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -13,7 +13,6 @@ import { ManufacturerFormModal } from '@/components/manufacturers/manufacturer-f
 import { ordersApi, type Order, type OrderStatus } from '@/lib/api/orders'
 import { manufacturersApi, type Manufacturer } from '@/lib/api/manufacturers'
 import { cn } from '@/lib/utils/cn'
-import Link from 'next/link'
 
 type ActiveTab = OrderStatus | 'map'
 
@@ -38,9 +37,9 @@ function formatDate(iso: string | null) {
   try { return format(new Date(iso), 'dd.MM.yyyy') } catch { return '—' }
 }
 
-// ─── Row ──────────────────────────────────────────────────────────────────────
+// ─── Shared props ─────────────────────────────────────────────────────────────
 
-interface OrderRowProps {
+interface OrderItemProps {
   order: Order
   isCompleted: boolean
   manufacturers: Manufacturer[]
@@ -49,7 +48,148 @@ interface OrderRowProps {
   onDelete: (id: string) => void
 }
 
-function OrderRow({ order, isCompleted, manufacturers, onComplete, onRestore, onDelete }: OrderRowProps) {
+// ─── Mobile Card ──────────────────────────────────────────────────────────────
+
+function OrderCard({ order, isCompleted, manufacturers, onComplete, onRestore, onDelete }: OrderItemProps) {
+  const router = useRouter()
+  const [editOpen, setEditOpen] = useState(false)
+  const [manufacturerOpen, setManufacturerOpen] = useState(false)
+
+  const foundManufacturer = order.manufacturer
+    ? manufacturers.find((m) => m.name === order.manufacturer)
+    : undefined
+
+  const mapsUrl = order.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.address)}`
+    : null
+
+  return (
+    <>
+      <div className={cn(
+        'rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3 transition-colors',
+        isCompleted && 'opacity-60',
+      )}>
+        {/* Header: date + actions */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {!isCompleted && (
+              <input
+                type="checkbox"
+                checked={false}
+                onChange={() => onComplete(order.id)}
+                title="Позначити як виконано"
+                className="h-4 w-4 shrink-0 rounded border-zinc-600 bg-zinc-800 accent-brand-600 cursor-pointer"
+              />
+            )}
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <Calendar className="h-3 w-3 shrink-0" />
+              <span>{formatDate(order.date)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200" title="Редагувати" onClick={() => setEditOpen(true)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            {isCompleted && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-200" title="Повернути в роботу" onClick={() => onRestore(order.id, 'in_progress')}>
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-red-400" title="Видалити" onClick={() => onDelete(order.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Customer */}
+        {order.customer && (
+          <button
+            onClick={() => router.push(`/companies?search=${encodeURIComponent(order.customer!)}`)}
+            className="flex items-center gap-2 text-left w-full"
+          >
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="text-sm font-medium text-zinc-200 hover:text-brand-400 transition-colors truncate">
+              {order.customer}
+            </span>
+          </button>
+        )}
+
+        {/* Object name */}
+        {order.object_name && (
+          <button
+            onClick={() => router.push(`/objects?search=${encodeURIComponent(order.object_name!)}`)}
+            className="flex items-center gap-2 text-left w-full"
+          >
+            <Package className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <span className="text-sm text-zinc-300 hover:text-brand-400 transition-colors truncate">
+              {order.object_name}
+            </span>
+          </button>
+        )}
+
+        {/* Address */}
+        {order.address && (
+          mapsUrl ? (
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+              <span className="text-xs text-zinc-400 hover:text-brand-400 transition-colors truncate">
+                {order.address}
+              </span>
+            </a>
+          ) : (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+              <span className="text-xs text-zinc-500 truncate">{order.address}</span>
+            </div>
+          )
+        )}
+
+        {/* Meta row: equipment + manufacturer + production date */}
+        {(order.equipment_count || order.manufacturer || order.production_date) && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-zinc-800">
+            {order.equipment_count && (
+              <span className="text-xs text-zinc-500">
+                Облад.: <span className="text-zinc-300">{order.equipment_count}</span>
+              </span>
+            )}
+            {order.manufacturer && (
+              <button
+                className={cn(
+                  'flex items-center gap-1 text-xs',
+                  foundManufacturer ? 'text-zinc-300 hover:text-brand-400' : 'text-zinc-500 cursor-default'
+                )}
+                onClick={() => foundManufacturer && setManufacturerOpen(true)}
+                disabled={!foundManufacturer}
+              >
+                <Factory className="h-3 w-3 shrink-0" />
+                <span className="truncate max-w-[120px]">{order.manufacturer}</span>
+              </button>
+            )}
+            {order.production_date && (
+              <span className="text-xs text-zinc-500">
+                Вигот.: <span className="text-zinc-300">{formatDate(order.production_date)}</span>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {order.notes && (
+          <p className="text-xs text-zinc-600 line-clamp-2 pt-0.5">{order.notes}</p>
+        )}
+      </div>
+
+      <OrderFormModal open={editOpen} onOpenChange={setEditOpen} order={order} />
+      {foundManufacturer && (
+        <ManufacturerFormModal open={manufacturerOpen} onOpenChange={setManufacturerOpen} manufacturer={foundManufacturer} readOnly />
+      )}
+    </>
+  )
+}
+
+// ─── Desktop Row ──────────────────────────────────────────────────────────────
+
+function OrderRow({ order, isCompleted, manufacturers, onComplete, onRestore, onDelete }: OrderItemProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [manufacturerOpen, setManufacturerOpen] = useState(false)
@@ -76,63 +216,46 @@ function OrderRow({ order, isCompleted, manufacturers, onComplete, onRestore, on
             />
           </td>
         )}
-
         <td className="px-4 py-3 text-zinc-300 whitespace-nowrap">{formatDate(order.date)}</td>
-
         <td className="px-4 py-3 whitespace-nowrap max-w-[160px]">
           {order.customer ? (
-            <button
-              onClick={() => router.push(`/companies?search=${encodeURIComponent(order.customer!)}`)}
-              className="text-zinc-200 font-medium hover:text-brand-400 transition-colors truncate block max-w-full text-left"
-              title={`Відкрити компанію: ${order.customer}`}
-            >
+            <button onClick={() => router.push(`/companies?search=${encodeURIComponent(order.customer!)}`)}
+              className="text-zinc-200 font-medium hover:text-brand-400 transition-colors truncate block max-w-full text-left">
               {order.customer}
             </button>
           ) : <span className="text-zinc-600">—</span>}
         </td>
-
         <td className="px-4 py-3 max-w-[200px]">
           {order.object_name ? (
-            <button
-              onClick={() => router.push(`/objects?search=${encodeURIComponent(order.object_name!)}`)}
-              className="text-zinc-300 hover:text-brand-400 transition-colors truncate block max-w-full text-left"
-              title={`Відкрити об'єкт: ${order.object_name}`}
-            >
+            <button onClick={() => router.push(`/objects?search=${encodeURIComponent(order.object_name!)}`)}
+              className="text-zinc-300 hover:text-brand-400 transition-colors truncate block max-w-full text-left">
               {order.object_name}
             </button>
           ) : <span className="text-zinc-600">—</span>}
         </td>
-
         <td className="px-4 py-3 max-w-[180px]">
           {mapsUrl ? (
-            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-zinc-400 hover:text-brand-400 transition-colors truncate" title="Відкрити на карті">
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-zinc-400 hover:text-brand-400 transition-colors truncate">
               <MapPin className="h-3 w-3 text-brand-400 shrink-0" />
               <span className="truncate">{order.address}</span>
             </a>
           ) : <span className="text-zinc-600">—</span>}
         </td>
-
         <td className="px-4 py-3 text-zinc-300 text-center">{order.equipment_count || '—'}</td>
-
         <td className="px-4 py-3 max-w-[160px]">
           {order.manufacturer ? (
             <button
               onClick={() => setManufacturerOpen(true)}
-              className={cn(
-                'truncate block max-w-full text-left transition-colors',
-                foundManufacturer ? 'text-zinc-300 hover:text-brand-400' : 'text-zinc-500 cursor-default'
-              )}
-              title={foundManufacturer ? `Деталі: ${order.manufacturer}` : order.manufacturer}
+              className={cn('truncate block max-w-full text-left transition-colors',
+                foundManufacturer ? 'text-zinc-300 hover:text-brand-400' : 'text-zinc-500 cursor-default')}
               disabled={!foundManufacturer}
             >
               {order.manufacturer}
             </button>
           ) : <span className="text-zinc-600">—</span>}
         </td>
-
         <td className="px-4 py-3 text-zinc-300 whitespace-nowrap">{formatDate(order.production_date)}</td>
         <td className="px-4 py-3 text-zinc-400 max-w-[200px] truncate">{order.notes || '—'}</td>
-
         <td className="px-3 py-3">
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button variant="ghost" size="icon" title="Редагувати" className="h-7 w-7 text-zinc-500 hover:text-zinc-200" onClick={() => setEditOpen(true)}>
@@ -151,22 +274,16 @@ function OrderRow({ order, isCompleted, manufacturers, onComplete, onRestore, on
       </tr>
 
       <OrderFormModal open={editOpen} onOpenChange={setEditOpen} order={order} />
-
       {foundManufacturer && (
-        <ManufacturerFormModal
-          open={manufacturerOpen}
-          onOpenChange={setManufacturerOpen}
-          manufacturer={foundManufacturer}
-          readOnly
-        />
+        <ManufacturerFormModal open={manufacturerOpen} onOpenChange={setManufacturerOpen} manufacturer={foundManufacturer} readOnly />
       )}
     </>
   )
 }
 
-// ─── Table ────────────────────────────────────────────────────────────────────
+// ─── List (mobile cards + desktop table) ─────────────────────────────────────
 
-interface OrdersTableProps {
+interface OrdersListProps {
   orders: Order[]
   tab: OrderStatus
   manufacturers: Manufacturer[]
@@ -175,8 +292,9 @@ interface OrdersTableProps {
   onDelete: (id: string) => void
 }
 
-function OrdersTable({ orders, tab, manufacturers, onComplete, onRestore, onDelete }: OrdersTableProps) {
+function OrdersList({ orders, tab, manufacturers, onComplete, onRestore, onDelete }: OrdersListProps) {
   const isCompleted = tab === 'completed'
+  const itemProps = { isCompleted, manufacturers, onComplete, onRestore, onDelete }
 
   if (orders.length === 0) {
     return (
@@ -188,37 +306,39 @@ function OrdersTable({ orders, tab, manufacturers, onComplete, onRestore, onDele
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-800">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900/60">
-            {!isCompleted && <th className="px-3 py-3 text-left text-xs font-medium text-zinc-500 w-10">Вик.</th>}
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Дата</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Замовник</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Назва об&apos;єкту</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Адреса</th>
-            <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500 whitespace-nowrap">К-ть обл.</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Виробництво</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Дата виготовл.</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Примітки</th>
-            <th className="px-3 py-3 w-24" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-800/60">
-          {orders.map((order) => (
-            <OrderRow
-              key={order.id}
-              order={order}
-              isCompleted={isCompleted}
-              manufacturers={manufacturers}
-              onComplete={onComplete}
-              onRestore={onRestore}
-              onDelete={onDelete}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      {/* Mobile: cards */}
+      <div className="md:hidden space-y-3">
+        {orders.map((order) => (
+          <OrderCard key={order.id} order={order} {...itemProps} />
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-zinc-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-zinc-800 bg-zinc-900/60">
+              {!isCompleted && <th className="px-3 py-3 text-left text-xs font-medium text-zinc-500 w-10">Вик.</th>}
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Дата</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Замовник</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Назва об&apos;єкту</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Адреса</th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-zinc-500 whitespace-nowrap">К-ть обл.</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Виробництво</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 whitespace-nowrap">Дата виготовл.</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500">Примітки</th>
+              <th className="px-3 py-3 w-24" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-800/60">
+            {orders.map((order) => (
+              <OrderRow key={order.id} order={order} {...itemProps} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
@@ -238,33 +358,6 @@ function AddOrderButton({ status }: { status: 'in_progress' | 'planned' }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-
-function LocalDataBanner() {
-  const [hasLocal, setHasLocal] = useState(false)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('buildradar-orders')
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      const items = parsed?.state?.orders ?? []
-      if (items.length > 0) setHasLocal(true)
-    } catch { /* ignore */ }
-  }, [])
-  if (!hasLocal) return null
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-yellow-950/20 px-4 py-3 text-sm">
-      <Database className="h-4 w-4 text-yellow-400 shrink-0" />
-      <span className="text-yellow-200 flex-1">
-        Знайдено замовлення у локальному сховищі браузера. Перенесіть їх у базу даних.
-      </span>
-      <Link href="/settings/migrate">
-        <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-950/40 shrink-0">
-          Мігрувати
-        </Button>
-      </Link>
-    </div>
-  )
-}
 
 export default function OrdersPage() {
   const qc = useQueryClient()
@@ -318,17 +411,16 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       <div>
         <h1 className="text-xl font-semibold text-zinc-100">Замовлення</h1>
         <p className="text-sm text-zinc-500 mt-1">Управління виробничими замовленнями</p>
       </div>
-      <LocalDataBanner />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ActiveTab)} className="space-y-5">
-        <TabsList className="gap-1">
+        <TabsList className="w-full overflow-x-auto flex-nowrap justify-start gap-1">
           {(['in_progress', 'planned', 'completed'] as const).map((status) => (
-            <TabsTrigger key={status} value={status} className="gap-2">
+            <TabsTrigger key={status} value={status} className="gap-2 shrink-0">
               {STATUS_LABELS[status]}
               {counts[status] > 0 && (
                 <span className={cn(
@@ -341,7 +433,7 @@ export default function OrdersPage() {
             </TabsTrigger>
           ))}
 
-          <TabsTrigger value="map" className="gap-2">
+          <TabsTrigger value="map" className="gap-2 shrink-0">
             <MapPin className="h-3.5 w-3.5" />
             Мапа
             {counts.map > 0 && (
@@ -361,18 +453,18 @@ export default function OrdersPage() {
               <p className="text-sm text-zinc-500">{counts[status]} замовлень</p>
               <AddOrderButton status={status} />
             </div>
-            <OrdersTable orders={byStatus(status)} tab={status} {...mutationProps} />
+            <OrdersList orders={byStatus(status)} tab={status} {...mutationProps} />
           </TabsContent>
         ))}
 
         <TabsContent value="completed" className="space-y-4">
           <p className="text-sm text-zinc-500">{counts.completed} виконаних замовлень</p>
-          <OrdersTable orders={byStatus('completed')} tab="completed" {...mutationProps} />
+          <OrdersList orders={byStatus('completed')} tab="completed" {...mutationProps} />
         </TabsContent>
 
         <TabsContent value="map">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
               <p className="text-sm text-zinc-500">{counts.map} з {orders.length} замовлень мають геолокацію</p>
               <p className="text-xs text-zinc-600">Геолокація встановлюється автоматично при вказуванні адреси</p>
             </div>

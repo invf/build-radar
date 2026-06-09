@@ -2,19 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query'
 import {
-  Users, Zap, Database, Activity, Settings,
-  Building2, Shield, BarChart3, ArrowRight,
+  Users, Database, Activity, Settings,
+  Building2, Shield, BarChart3, ArrowRight, Zap,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usersApi } from '@/lib/api/users'
-import { apiFetch } from '@/lib/api/client'
 import { objectsApi } from '@/lib/api/objects'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTime } from '@/lib/utils/format'
-import type { ParserLog } from '@/types'
 
 function AdminCard({
   title,
@@ -62,16 +56,10 @@ export default function AdminPage() {
     staleTime: 60_000,
   })
 
-  const { data: recentLogs } = useQuery({
-    queryKey: ['parser-logs-recent'],
-    queryFn: () => apiFetch<ParserLog[]>('/admin/parsers/logs?limit=3'),
-    refetchInterval: 30_000,
-  })
-
   const activeUsers = users?.items?.filter(u => u.is_active).length ?? 0
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-600/20">
           <Shield className="h-5 w-5 text-purple-400" />
@@ -108,12 +96,6 @@ export default function AdminPage() {
           badge={`${users?.total ?? 0}`}
         />
         <AdminCard
-          title="Парсери"
-          description="Статус збору даних ЄДЕССБ, Prozorro, data.gov.ua та журнали"
-          icon={Zap}
-          href="/admin/parsers"
-        />
-        <AdminCard
           title="База даних"
           description="Перегляд статистики таблиць та стан індексів"
           icon={Database}
@@ -138,46 +120,6 @@ export default function AdminPage() {
           href="/admin/system"
         />
       </div>
-
-      {/* Recent parser activity */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">Остання активність парсерів</CardTitle>
-          <Link href="/admin/parsers">
-            <Button variant="ghost" size="sm" className="text-brand-400 hover:text-brand-300 gap-1 text-xs">
-              Всі <ArrowRight className="h-3 w-3" />
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {!recentLogs ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
-            </div>
-          ) : recentLogs.length === 0 ? (
-            <p className="text-zinc-600 text-sm">Немає даних</p>
-          ) : (
-            <div className="space-y-2">
-              {recentLogs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between rounded-lg border border-zinc-800 p-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${
-                      log.status === 'completed' ? 'bg-green-400' :
-                      log.status === 'running' ? 'bg-yellow-400 animate-pulse' :
-                      log.status === 'failed' ? 'bg-red-400' : 'bg-zinc-600'
-                    }`} />
-                    <span className="text-sm text-zinc-300 font-medium uppercase">{log.source}</span>
-                    <span className="text-xs text-zinc-600">
-                      +{log.objects_created} / ~{log.objects_updated}
-                    </span>
-                  </div>
-                  <span className="text-xs text-zinc-500">{formatDateTime(log.started_at)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Map, Building2, Star, FileText, ShoppingCart, Zap, Pencil, Trash2, Globe } from 'lucide-react'
+import { MapPin, Map, Building2, Star, ShoppingCart, Zap, Pencil, Trash2, Globe } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -156,12 +156,6 @@ export function ObjectCard({ object, onFavorite, isFavorite, onEdit, onDelete, o
         {/* Footer: permits/tenders + AI score */}
         <div className="flex items-center justify-between pt-1 border-t border-zinc-800/60">
           <div className="flex items-center gap-2.5 text-xs text-zinc-600">
-            {object.permits && object.permits.length > 0 && (
-              <span className="flex items-center gap-0.5">
-                <FileText className="h-3 w-3" />
-                {object.permits.length}
-              </span>
-            )}
             {object.tenders && object.tenders.length > 0 && (
               <span className="flex items-center gap-0.5 text-yellow-600">
                 <ShoppingCart className="h-3 w-3" />

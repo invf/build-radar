@@ -105,7 +105,7 @@ function CompanyCard({
           </div>
         </Link>
 
-        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <Button
             variant="ghost"
             size="icon"
@@ -229,7 +229,7 @@ export default function CompaniesPage() {
   }
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Компанії</h1>
@@ -250,8 +250,8 @@ export default function CompaniesPage() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             placeholder="Пошук за назвою або ЄДРПОУ..."
@@ -261,7 +261,7 @@ export default function CompaniesPage() {
           />
         </div>
         <Select value={type} onValueChange={(v) => { setType(v); setPage(1) }}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Тип компанії" />
           </SelectTrigger>
           <SelectContent>

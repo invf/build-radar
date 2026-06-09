@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building, Phone, Mail, Globe, MapPin, Star, ArrowLeft, ExternalLink,
   MessageCircle, Pencil, ChevronLeft, ChevronRight, Image, Map, Plus, Trash2,
-  Building2, FileText, ShoppingCart,
+  Building2, ShoppingCart,
 } from 'lucide-react'
 import Link from 'next/link'
 import { companiesApi } from '@/lib/api/companies'
@@ -451,21 +451,13 @@ function CompanyObjectModal({
             </div>
           )}
 
-          {/* Permits / Tenders */}
-          {((obj.permits_count ?? 0) > 0 || (obj.tenders_count ?? 0) > 0) && (
+          {/* Tenders */}
+          {(obj.tenders_count ?? 0) > 0 && (
             <div className="flex gap-3">
-              {(obj.permits_count ?? 0) > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700">
-                  <FileText className="h-3.5 w-3.5" />
-                  {obj.permits_count} дозвол{obj.permits_count === 1 ? '' : 'ів'}
-                </span>
-              )}
-              {(obj.tenders_count ?? 0) > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20">
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  {obj.tenders_count} тендер{obj.tenders_count === 1 ? '' : 'ів'}
-                </span>
-              )}
+              <span className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20">
+                <ShoppingCart className="h-3.5 w-3.5" />
+                {obj.tenders_count} тендер{obj.tenders_count === 1 ? '' : 'ів'}
+              </span>
             </div>
           )}
 
@@ -638,7 +630,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -660,7 +652,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const contacts: CompanyContact[] = (company.contacts as CompanyContact[]) || []
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -734,7 +726,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Tabs */}
       <Tabs defaultValue="general">
-        <TabsList className="w-full max-w-md">
+        <TabsList className="w-full overflow-x-auto flex-nowrap justify-start md:max-w-md">
           <TabsTrigger value="general" className="flex-1">Загальна інформація</TabsTrigger>
           <TabsTrigger value="contacts" className="flex-1">
             Контакти {contacts.length > 0 && <span className="ml-1.5 rounded-full bg-zinc-700 text-zinc-400 text-[10px] px-1.5 py-0.5">{contacts.length}</span>}

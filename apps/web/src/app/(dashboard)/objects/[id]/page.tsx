@@ -7,11 +7,9 @@ import {
   MapPin,
   Building2,
   Calendar,
-  FileText,
   ShoppingCart,
   ExternalLink,
   Star,
-  Layers,
   Maximize2,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -27,7 +25,6 @@ import {
   STATUS_COLORS,
   CATEGORY_LABELS,
   COMPANY_ROLE_LABELS,
-  PERMIT_TYPE_LABELS,
   formatDate,
   formatArea,
   formatRelative,
@@ -47,7 +44,7 @@ export default function ObjectDetailPage({ params }: ObjectDetailPageProps) {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-5">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-5">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -70,7 +67,7 @@ export default function ObjectDetailPage({ params }: ObjectDetailPageProps) {
   }
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <Link href="/objects">
@@ -152,13 +149,10 @@ export default function ObjectDetailPage({ params }: ObjectDetailPageProps) {
         {/* Left: Details tabs */}
         <div className="lg:col-span-2 space-y-4">
           <Tabs defaultValue="overview">
-            <TabsList>
+            <TabsList className="w-full overflow-x-auto flex-nowrap justify-start">
               <TabsTrigger value="overview">Огляд</TabsTrigger>
               <TabsTrigger value="companies">
                 Компанії {object.companies?.length > 0 && `(${object.companies.length})`}
-              </TabsTrigger>
-              <TabsTrigger value="permits">
-                Дозволи {object.permits?.length > 0 && `(${object.permits.length})`}
               </TabsTrigger>
               <TabsTrigger value="tenders">
                 Тендери {object.tenders?.length > 0 && `(${object.tenders.length})`}
@@ -231,39 +225,6 @@ export default function ObjectDetailPage({ params }: ObjectDetailPageProps) {
                 </Link>
               )) : (
                 <p className="text-zinc-500 text-sm text-center py-8">Компанії не визначені</p>
-              )}
-            </TabsContent>
-
-            {/* Permits tab */}
-            <TabsContent value="permits" className="mt-4 space-y-3">
-              {object.permits?.length > 0 ? object.permits.map((permit) => (
-                <div key={permit.id} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <FileText className="h-5 w-5 text-blue-400 mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-zinc-200">{permit.permit_number}</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">{PERMIT_TYPE_LABELS[permit.permit_type]}</p>
-                        {permit.issued_date && (
-                          <p className="text-xs text-zinc-600 mt-1">Видано: {formatDate(permit.issued_date)}</p>
-                        )}
-                        {permit.issuing_authority && (
-                          <p className="text-xs text-zinc-600">{permit.issuing_authority}</p>
-                        )}
-                      </div>
-                    </div>
-                    {permit.document_url && (
-                      <a href={permit.document_url} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm" className="border-zinc-800 text-xs gap-1">
-                          <ExternalLink className="h-3 w-3" />
-                          Документ
-                        </Button>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )) : (
-                <p className="text-zinc-500 text-sm text-center py-8">Дозволи не знайдено</p>
               )}
             </TabsContent>
 

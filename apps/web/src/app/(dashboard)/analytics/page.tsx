@@ -8,7 +8,6 @@ import {
 import { objectsApi } from '@/lib/api/objects'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 import type { RegionalStats } from '@/types'
 
 const STATUS_COLORS = {
@@ -51,13 +50,15 @@ export default function AnalyticsPage() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: objectsApi.getDashboardStats,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: true,
   })
 
   const { data: regional, isLoading: regionalLoading } = useQuery({
     queryKey: ['regional-stats'],
     queryFn: objectsApi.getRegionalStats,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: true,
   })
 
   const regionalData = (regional as RegionalStats[] | undefined)?.slice(0, 15) || []
@@ -86,7 +87,7 @@ export default function AnalyticsPage() {
     : []
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div>
         <h1 className="text-xl font-semibold text-zinc-100">Аналітика</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Розподіл будівельних об&apos;єктів по Україні</p>
