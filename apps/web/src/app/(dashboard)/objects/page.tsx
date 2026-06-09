@@ -1,8 +1,6 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -201,7 +199,7 @@ function ObjectQuickViewModal({
   )
 }
 
-export default function ObjectsPage() {
+function ObjectsPageInner() {
   const searchParams = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
@@ -531,5 +529,13 @@ export default function ObjectsPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function ObjectsPage() {
+  return (
+    <Suspense>
+      <ObjectsPageInner />
+    </Suspense>
   )
 }

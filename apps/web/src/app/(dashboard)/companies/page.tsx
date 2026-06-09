@@ -1,8 +1,6 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
 import { Building, Search, ExternalLink, Pencil, Trash2, Globe } from 'lucide-react'
@@ -182,7 +180,7 @@ function CompanyCard({
   )
 }
 
-export default function CompaniesPage() {
+function CompaniesPageInner() {
   const searchParams = useSearchParams()
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [type, setType] = useState<string>('all')
@@ -327,5 +325,13 @@ export default function CompaniesPage() {
         </>
       )}
     </div>
+  )
+}
+
+export default function CompaniesPage() {
+  return (
+    <Suspense>
+      <CompaniesPageInner />
+    </Suspense>
   )
 }
