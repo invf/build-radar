@@ -13,6 +13,19 @@ ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
+async def _upload_to_storage(content: bytes, filename: str, content_type: str, token: str) -> tuple[bool, str]:
+    """Try uploading with a given token. Returns True on success."""
+    url = f"{settings.supabase_url}/storage/v1/object/{BUCKET}/{filename}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": content_type,
+        "x-upsert": "true",
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(url, content=content, headers=headers)
+    return resp.status_code in (200, 201), resp.text
+
+
 @router.post("")
 async def upload_file(
     file: UploadFile = File(...),
@@ -32,18 +45,13 @@ async def upload_file(
     filename = f"{uuid.uuid4().hex}.{ext}"
     content_type = file.content_type or "image/jpeg"
 
-    storage_url = f"{settings.supabase_url}/storage/v1/object/{BUCKET}/{filename}"
-    headers = {
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
-        "Content-Type": content_type,
-        "x-upsert": "true",
-    }
+    # Try service_role key first, fall back to anon key
+    for token in [settings.supabase_service_role_key, settings.supabase_anon_key]:
+        if not token:
+            continue
+        ok, err_text = await _upload_to_storage(content, filename, content_type, token)
+        if ok:
+            public_url = f"{settings.supabase_url}/storage/v1/object/public/{BUCKET}/{filename}"
+            return {"url": public_url}
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(storage_url, content=content, headers=headers)
-
-    if resp.status_code not in (200, 201):
-        raise HTTPException(500, f"Помилка збереження файлу: {resp.text}")
-
-    public_url = f"{settings.supabase_url}/storage/v1/object/public/{BUCKET}/{filename}"
-    return {"url": public_url}
+    raise HTTPException(500, "Не вдалося завантажити файл. Перевірте налаштування Supabase Storage.")
