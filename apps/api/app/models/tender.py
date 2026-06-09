@@ -33,6 +33,11 @@ class Tender(Base):
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     procuring_entity: Mapped[Optional[str]] = mapped_column(String(500))
     procuring_entity_edrpou: Mapped[Optional[str]] = mapped_column(String(20), index=True)
+    source: Mapped[Optional[str]] = mapped_column(String(50), default="prozorro")
+    source_url: Mapped[Optional[str]] = mapped_column(Text)
+    country: Mapped[Optional[str]] = mapped_column(String(100))
+    donor: Mapped[Optional[str]] = mapped_column(String(100))
+    sector: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow

@@ -10,7 +10,6 @@ celery_app = Celery(
     include=[
         "app.tasks.parser_tasks",
         "app.tasks.ai_tasks",
-        "app.tasks.notification_tasks",
     ],
 )
 
@@ -35,14 +34,5 @@ celery_app.conf.update(
             "schedule": crontab(hour=2, minute=0),  # 2 AM daily
         },
 
-        # Notification tasks
-        "send-saved-search-alerts-hourly": {
-            "task": "app.tasks.notification_tasks.check_saved_search_alerts",
-            "schedule": crontab(minute=30),  # Every hour at :30
-        },
-        "send-reminders-daily": {
-            "task": "app.tasks.notification_tasks.send_reminder_notifications",
-            "schedule": crontab(hour=9, minute=0),  # 9 AM daily
-        },
     },
 )

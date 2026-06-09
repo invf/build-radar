@@ -40,8 +40,6 @@ class User(Base):
     notes = relationship("ObjectNote", back_populates="user", cascade="all, delete-orphan")
     saved_searches = relationship("SavedSearch", back_populates="user", cascade="all, delete-orphan")
     favorite_objects = relationship("FavoriteObject", back_populates="user", cascade="all, delete-orphan")
-    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
-    notification_settings = relationship("NotificationSettings", back_populates="user", uselist=False)
 
 
 class Invitation(Base):

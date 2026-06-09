@@ -25,6 +25,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 class EnrichRequest(BaseModel):
     name: str
     city: Optional[str] = None
+    address: Optional[str] = None   # full OSM display_name — helps when name is generic
     entity_type: str = "object"   # "object" | "company"
     website_url: Optional[str] = None   # skip web search if already known
 
@@ -92,7 +93,7 @@ async def enrich_place(
     url = body.website_url
     if not url:
         hint = "офіційний сайт ЖК" if body.entity_type == "object" else "офіційний сайт"
-        url = await web_search_svc.find_website(name, city, hint)
+        url = await web_search_svc.find_website(name, city, hint, address=body.address)
 
     if not url:
         return EnrichResult(

@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
 from . import models  # noqa: F401 — registers all ORM mappers before first query
-from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, notifications, saved_searches, admin_parsers, ai_enrich, upload, search, smart_search, manufacturers, orders, prozorro_search, search_enrich
+from .api.v1 import objects, notes, analytics, users, companies, permits, tenders, saved_searches, admin_parsers, ai_enrich, upload, search, smart_search, manufacturers, orders, prozorro_search, search_enrich, potential_objects, international
 
 # Configure logging
 logging.basicConfig(
@@ -96,7 +96,6 @@ app.include_router(users.admin_router, prefix="/api/v1")
 app.include_router(companies.router, prefix="/api/v1")
 app.include_router(permits.router, prefix="/api/v1")
 app.include_router(tenders.router, prefix="/api/v1")
-app.include_router(notifications.router, prefix="/api/v1")
 app.include_router(saved_searches.router, prefix="/api/v1")
 app.include_router(admin_parsers.router, prefix="/api/v1")
 app.include_router(ai_enrich.router, prefix="/api/v1")
@@ -107,6 +106,8 @@ app.include_router(manufacturers.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(prozorro_search.router, prefix="/api/v1")
 app.include_router(search_enrich.router, prefix="/api/v1")
+app.include_router(potential_objects.router, prefix="/api/v1")
+app.include_router(international.router, prefix="/api/v1")
 
 # Static files (uploaded images)
 _uploads_dir = Path(__file__).resolve().parent.parent / "static" / "uploads"

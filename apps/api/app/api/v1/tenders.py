@@ -1,8 +1,10 @@
 """Tenders list endpoint."""
+import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, asc
+from sqlalchemy.exc import IntegrityError
 
 from ...core.database import get_db
 from ...core.dependencies import get_current_user
@@ -10,7 +12,7 @@ from ...core.redis import cache_get, cache_set
 from ...models.user import User
 from ...models.tender import Tender, TenderStatus
 from ...models.construction_object import ConstructionObject
-from ...schemas.tenders import TenderSchema, TenderCreateSchema
+from ...schemas.tenders import TenderSchema, TenderCreateSchema, TenderUpdateSchema
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
 
@@ -23,7 +25,11 @@ async def create_tender(
 ):
     tender = Tender(**body.model_dump())
     db.add(tender)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Tender already exists")
     await db.refresh(tender)
     return TenderSchema.model_validate(tender)
 
@@ -89,3 +95,33 @@ async def list_tenders(
     }
     await cache_set(cache_key, result, ttl=300)
     return result
+
+
+@router.patch("/{tender_id}", response_model=TenderSchema)
+async def update_tender(
+    tender_id: uuid.UUID,
+    body: TenderUpdateSchema,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    tender = await db.get(Tender, tender_id)
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(tender, field, value)
+    await db.commit()
+    await db.refresh(tender)
+    return TenderSchema.model_validate(tender)
+
+
+@router.delete("/{tender_id}", status_code=204)
+async def delete_tender(
+    tender_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    tender = await db.get(Tender, tender_id)
+    if not tender:
+        raise HTTPException(status_code=404, detail="Tender not found")
+    await db.delete(tender)
+    await db.commit()

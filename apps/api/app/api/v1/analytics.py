@@ -102,18 +102,6 @@ async def get_dashboard_stats(
         for row in dev_result.all()
     ]
 
-    # Recent objects
-    recent_result = await db.execute(
-        select(ConstructionObject)
-        .order_by(ConstructionObject.created_at.desc())
-        .limit(8)
-    )
-    from ...schemas.objects import ConstructionObjectListSchema
-    recent_objects = [
-        ConstructionObjectListSchema.model_validate(o).model_dump(mode="json")
-        for o in recent_result.scalars().all()
-    ]
-
     # AI opportunities count
     ai_opps = await db.scalar(
         select(func.count(AIAnalysis.id))
@@ -126,11 +114,11 @@ async def get_dashboard_stats(
         "under_construction": under_construction or 0,
         "active_tenders": active_tenders or 0,
         "new_permits_week": new_permits_week or 0,
-        "objects_by_status": {str(k): v for k, v in objects_by_status.items()},
-        "objects_by_category": {str(k): v for k, v in objects_by_category.items()},
+        "objects_by_status": {k.value if hasattr(k, 'value') else str(k): v for k, v in objects_by_status.items()},
+        "objects_by_category": {k.value if hasattr(k, 'value') else str(k): v for k, v in objects_by_category.items()},
         "top_cities": top_cities,
         "top_developers": top_developers,
-        "recent_objects": recent_objects,
+        "recent_objects": [],
         "ai_opportunities_count": ai_opps or 0,
     }
 

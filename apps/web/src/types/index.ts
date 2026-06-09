@@ -88,7 +88,6 @@ export interface ConstructionObject {
   ai_score?: number
   ai_summary?: string
   companies?: ObjectCompany[]
-  permits?: Permit[]
   tenders?: Tender[]
   notes_count?: number
   created_at: string
@@ -97,7 +96,6 @@ export interface ConstructionObject {
 
 export interface ConstructionObjectDetail extends ConstructionObject {
   companies: ObjectCompany[]
-  permits: Permit[]
   tenders: Tender[]
   status_history: StatusHistoryEntry[]
   ai_analysis?: AIAnalysis
@@ -191,29 +189,6 @@ export interface CompanyObject {
   role?: CompanyRole
 }
 
-// ─── Permits ───────────────────────────────────────────────────────────────────
-
-export type PermitType =
-  | 'construction_permit'
-  | 'readiness_declaration'
-  | 'urban_planning_conditions'
-  | 'technical_conditions'
-  | 'design_approval'
-  | 'expert_examination'
-
-export interface Permit {
-  id: string
-  object_id: string
-  permit_number: string
-  permit_type: PermitType
-  series?: string
-  issued_date?: string
-  valid_until?: string
-  issuing_authority?: string
-  document_url?: string
-  created_at: string
-}
-
 // ─── Tenders ───────────────────────────────────────────────────────────────────
 
 export type TenderStatus =
@@ -232,6 +207,11 @@ export interface Tender {
   currency?: string
   deadline?: string
   procuring_entity?: string
+  source?: string
+  source_url?: string
+  country?: string
+  donor?: string
+  sector?: string
   created_at: string
   updated_at: string
 }
@@ -293,47 +273,14 @@ export interface ObjectFilters {
   date_from?: string
   date_to?: string
   has_tenders?: boolean
-  has_permits?: boolean
 }
 
-export interface SavedSearch {
-  id: string
-  user_id: string
-  name: string
-  filters: ObjectFilters
-  notify_enabled: boolean
-  last_checked?: string
-  created_at: string
-}
 
 export interface FavoriteObject {
   id: string
   user_id: string
   object_id: string
   object: ConstructionObject
-  created_at: string
-}
-
-// ─── Notifications ─────────────────────────────────────────────────────────────
-
-export type NotificationType =
-  | 'new_object'
-  | 'status_change'
-  | 'new_permit'
-  | 'new_tender'
-  | 'ai_insight'
-  | 'reminder'
-  | 'system'
-
-export interface Notification {
-  id: string
-  user_id: string
-  type: NotificationType
-  title: string
-  body: string
-  is_read: boolean
-  related_object_id?: string
-  related_company_id?: string
   created_at: string
 }
 
@@ -356,7 +303,6 @@ export interface DashboardStats {
   new_today: number
   under_construction: number
   active_tenders: number
-  new_permits_week: number
   objects_by_status: Record<ObjectStatus, number>
   objects_by_category: Record<ObjectCategory, number>
   top_cities: Array<{ city: string; count: number }>
@@ -372,22 +318,6 @@ export interface RegionalStats {
   completed: number
   planned: number
   growth_rate: number
-}
-
-// ─── Parser & Admin ────────────────────────────────────────────────────────────
-
-export type ParserStatus = 'running' | 'completed' | 'failed' | 'scheduled'
-
-export interface ParserLog {
-  id: string
-  source: string
-  started_at: string
-  completed_at?: string
-  objects_found: number
-  objects_updated: number
-  objects_created: number
-  errors?: unknown[]
-  status: ParserStatus
 }
 
 // ─── API Responses ─────────────────────────────────────────────────────────────

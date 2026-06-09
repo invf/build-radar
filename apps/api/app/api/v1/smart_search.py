@@ -206,6 +206,7 @@ class ExternalPlace(BaseModel):
     city: Optional[str] = None
     oblast: Optional[str] = None
     osm_id: Optional[str] = None
+    osm_type: Optional[str] = None   # node | way | relation
     # OSM tags
     website: Optional[str] = None
     phone: Optional[str] = None
@@ -284,7 +285,8 @@ async def smart_search(
                     lng=r.get("lng"),
                     city=r.get("city"),
                     oblast=r.get("oblast"),
-                    osm_id=str(r.get("osm_id", "")),
+                    osm_id=str(r.get("osm_id", "")) or None,
+                    osm_type=r.get("osm_type") or None,
                     website=r.get("website") or None,
                     phone=r.get("phone") or None,
                     email=r.get("email") or None,

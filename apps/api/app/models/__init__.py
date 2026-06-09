@@ -7,7 +7,6 @@ from .note import ObjectNote
 from .saved_search import SavedSearch, FavoriteObject
 from .status_history import StatusHistory
 from .ai_analysis import AIAnalysis
-from .notification import Notification
 from .audit_log import AuditLog
 from .parser_log import ParserLog
 from .manufacturer import Manufacturer
@@ -23,7 +22,6 @@ __all__ = [
     "SavedSearch", "FavoriteObject",
     "StatusHistory",
     "AIAnalysis",
-    "Notification",
     "AuditLog",
     "ParserLog",
     "Manufacturer",

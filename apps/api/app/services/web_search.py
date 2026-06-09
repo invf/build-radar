@@ -11,7 +11,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = 12.0
+_TIMEOUT = 8.0
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -23,6 +23,48 @@ _HEADERS = {
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
 }
+
+_GENERIC_PLACE_NAMES = {
+    "житловий комплекс", "жк", "будинок", "многоквартирний будинок",
+    "багатоквартирний будинок", "residential complex", "apartment complex",
+}
+
+
+def _is_generic_name(name: str) -> bool:
+    return name.lower().strip() in _GENERIC_PLACE_NAMES
+
+
+def _build_query(name: str, city: str | None, entity_hint: str, address: str | None) -> list[str]:
+    """Return ordered list of queries to try, from most specific to broadest."""
+    queries: list[str] = []
+
+    if _is_generic_name(name) and address:
+        # Address looks like "Житловий комплекс, вул. Романа Мстиславича, Воскресенка, Київ, ..."
+        # Skip the first part (it's the generic name again), use street + district
+        parts = [p.strip() for p in address.split(",") if p.strip()]
+        # Drop parts that duplicate the generic name or are too short
+        meaningful = [
+            p for p in parts
+            if len(p) > 4 and p.lower() != name.lower() and not p[:5].isdigit()
+        ]
+        if meaningful:
+            # Primary: street + district/area + city + hint
+            street_parts = meaningful[:3]
+            if city and not any(city.lower() in p.lower() for p in street_parts):
+                street_parts.append(city)
+            queries.append(" ".join(street_parts) + f" {entity_hint}")
+            # Secondary: just street + city + hint (broader)
+            if len(meaningful) >= 2:
+                queries.append(f"{meaningful[0]} {city or ''} {entity_hint}".strip())
+
+    # Always include a fallback with the original name
+    quoted = f'"{name}"'
+    fallback = f"{quoted} {city} {entity_hint}" if city else f"{quoted} {entity_hint}"
+    if fallback not in queries:
+        queries.append(fallback)
+
+    return queries
+
 
 _SKIP_DOMAINS = {
     "facebook.com", "instagram.com", "youtube.com", "t.me",
@@ -131,30 +173,18 @@ async def find_website(
     name: str,
     city: str | None = None,
     entity_hint: str = "офіційний сайт",
+    address: str | None = None,
 ) -> str | None:
     """Try multiple search engines and return the first plausible website URL."""
-    parts = [f'"{name}"']
-    if city:
-        parts.append(city)
-    parts.append(entity_hint)
-    query = " ".join(parts)
+    queries = _build_query(name, city, entity_hint, address)
 
-    logger.info(f"Searching website for: {query}")
-
-    # Try engines in order
-    for fn in (_search_ddg_lite, _search_google, _search_bing):
-        result = await fn(query)
-        if result:
-            logger.info(f"Found via {fn.__name__}: {result}")
-            return result
-
-    # Second attempt without quotes (broader)
-    query2 = f"{name} {city or ''} {entity_hint}".strip()
-    for fn in (_search_google, _search_bing):
-        result = await fn(query2)
-        if result:
-            logger.info(f"Found (broad) via {fn.__name__}: {result}")
-            return result
+    for query in queries:
+        logger.info(f"Searching website: {query}")
+        for fn in (_search_ddg_lite, _search_google, _search_bing):
+            result = await fn(query)
+            if result:
+                logger.info(f"Found via {fn.__name__} (query={query!r}): {result}")
+                return result
 
     logger.info(f"No website found for '{name}'")
     return None

@@ -5,7 +5,6 @@ import type {
   ObjectCategory,
   NoteStatus,
   CompanyRole,
-  PermitType,
 } from '@/types'
 
 export function formatDate(date: string | Date | undefined): string {
@@ -104,15 +103,6 @@ export const COMPANY_ROLE_LABELS: Record<CompanyRole, string> = {
   technical_supervision: 'Технічний нагляд',
   architect: 'Архітектор',
   investor: 'Інвестор',
-}
-
-export const PERMIT_TYPE_LABELS: Record<PermitType, string> = {
-  construction_permit: 'Дозвіл на будівництво',
-  readiness_declaration: 'Декларація готовності',
-  urban_planning_conditions: 'Містобудівні умови',
-  technical_conditions: 'Технічні умови',
-  design_approval: 'Погодження проекту',
-  expert_examination: 'Експертиза',
 }
 
 export const OBLAST_LABELS: Record<string, string> = {
