@@ -5,6 +5,34 @@ import { Camera, ImageIcon, X, Loader2 } from 'lucide-react'
 import { uploadImage } from '@/lib/api/upload'
 import { cn } from '@/lib/utils/cn'
 
+async function compressImage(file: File, maxPx = 1920, quality = 0.82): Promise<File> {
+  if (file.size < 300 * 1024) return file
+  return new Promise((resolve) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      let { width, height } = img
+      if (width > maxPx || height > maxPx) {
+        const ratio = Math.min(maxPx / width, maxPx / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], 'photo.jpg', { type: 'image/jpeg' }) : file),
+        'image/jpeg',
+        quality,
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file) }
+    img.src = objectUrl
+  })
+}
+
 interface ImageUploadProps {
   value?: string
   onChange: (url: string) => void
@@ -39,7 +67,8 @@ export function ImageUpload({
     setLoading(true)
     setError('')
     try {
-      const url = await uploadImage(file)
+      const toUpload = await compressImage(file)
+      const url = await uploadImage(toUpload)
       onChange(url)
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail

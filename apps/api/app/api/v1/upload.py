@@ -9,8 +9,8 @@ from ...core.config import settings
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 BUCKET = "uploads"
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
+MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 async def _upload_to_storage(content: bytes, filename: str, content_type: str, token: str) -> tuple[bool, str]:
@@ -31,19 +31,19 @@ async def upload_file(
     file: UploadFile = File(...),
     _: User = Depends(get_current_user),
 ):
-    if file.content_type not in ALLOWED_TYPES:
+    content_type = file.content_type or "image/jpeg"
+    if content_type not in ALLOWED_TYPES:
         raise HTTPException(400, "Дозволені лише зображення (JPEG, PNG, WEBP, GIF)")
 
     content = await file.read()
     if len(content) > MAX_SIZE:
-        raise HTTPException(400, "Файл занадто великий (максимум 5 МБ)")
+        raise HTTPException(400, "Файл занадто великий (максимум 10 МБ)")
 
     ext = (file.filename or "file").rsplit(".", 1)[-1].lower()
-    if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+    if ext not in ("jpg", "jpeg", "png", "webp", "gif", "heic", "heif"):
         ext = "jpg"
 
     filename = f"{uuid.uuid4().hex}.{ext}"
-    content_type = file.content_type or "image/jpeg"
 
     # Try service_role key first, fall back to anon key
     for token in [settings.supabase_service_role_key, settings.supabase_anon_key]:
