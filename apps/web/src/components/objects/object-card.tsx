@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Map, Building2, Star, ShoppingCart, Zap, Pencil, Trash2, Globe } from 'lucide-react'
+import { MapPin, Map, Building2, Star, ShoppingCart, Zap, Pencil, Trash2, Globe, HardHat } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -127,6 +127,15 @@ export function ObjectCard({ object, onFavorite, isFavorite, onEdit, onDelete, o
             <Globe className="h-3 w-3 shrink-0" />
             <span className="truncate">{object.website.replace(/^https?:\/\/(www\.)?/, '')}</span>
           </a>
+        )}
+
+        {/* General contractor */}
+        {object.general_contractor && (
+          <div className="flex items-center gap-1 min-w-0">
+            <HardHat className="h-3 w-3 text-zinc-500 shrink-0" />
+            <span className="text-xs text-zinc-500 shrink-0">Генпідрядник:</span>
+            <span className="text-xs text-zinc-300 truncate">{object.general_contractor}</span>
+          </div>
         )}
 
         {/* Description */}
