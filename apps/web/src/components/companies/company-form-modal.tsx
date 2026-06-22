@@ -106,6 +106,12 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
   const [objectPickerValue, setObjectPickerValue] = useState('')
   const qc = useQueryClient()
 
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v)
+    else setInternalOpen(v)
+  }
+
   const { data: objectsData } = useQuery({
     queryKey: ['objects-for-company-form'],
     queryFn: () => objectsApi.list({ page_size: 200, sort_by: 'updated_at', sort_order: 'desc' }),
@@ -132,12 +138,6 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
       })),
     [objectsData, addedObjectIds],
   )
-
-  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
-  const setOpen = (v: boolean) => {
-    if (onOpenChange) onOpenChange(v)
-    else setInternalOpen(v)
-  }
 
   useEffect(() => {
     if (open && initialData) {
