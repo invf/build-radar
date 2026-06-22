@@ -18,6 +18,7 @@ class CompanyContactSchema(BaseModel):
 
 
 class CompanyProjectSchema(BaseModel):
+    object_id: Optional[str] = None
     object_name: str = ""
     address: str = ""
     queue: str = ""

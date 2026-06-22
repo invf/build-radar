@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Sparkles, AlertTriangle, Trash2, Search, Loader2, Globe, X, Check } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Sparkles, AlertTriangle, Trash2, Search, Loader2, Globe, X, Check, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,9 +18,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { companiesApi, type CompanyCreatePayload } from '@/lib/api/companies'
+import { objectsApi } from '@/lib/api/objects'
 import { aiEnrichApi, type CompanyEnrichResult, type WebEnrichResult } from '@/lib/api/ai-enrich'
 import { searchApi, type EdrpouCompany } from '@/lib/api/search'
-import type { Company, CompanyContact, CompanyProject } from '@/types'
+import { Combobox } from '@/components/ui/combobox'
+import type { Company, CompanyContact, CompanyProject, ConstructionObject } from '@/types'
 
 const COMPANY_ROLE_LABELS = {
   developer: 'Забудовник',
@@ -39,6 +41,32 @@ const EMPTY_CONTACT: CompanyContact = {
 
 const EMPTY_PROJECT: CompanyProject = {
   object_name: '', address: '', queue: '', deadline: '', customer: '', contractor: '', installer: '', supplier: '', designer: '', notes: '', photos: [],
+}
+
+function projectFromRegistryObject(obj: {
+  id: string
+  name: string
+  address?: string
+  city?: string
+  photos?: string[]
+  customer?: string
+  general_contractor?: string
+  designer?: string
+  installer?: string
+  description?: string
+}): CompanyProject {
+  return {
+    ...EMPTY_PROJECT,
+    object_id: obj.id,
+    object_name: obj.name,
+    address: [obj.address, obj.city].filter(Boolean).join(', '),
+    photos: obj.photos ?? [],
+    customer: obj.customer ?? '',
+    contractor: obj.general_contractor ?? '',
+    designer: obj.designer ?? '',
+    installer: obj.installer ?? '',
+    notes: obj.description ?? '',
+  }
 }
 
 const EMPTY_FORM: CompanyCreatePayload = {
@@ -75,7 +103,35 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
   const [edrpouResults, setEdrpouResults] = useState<EdrpouCompany[]>([])
   const [edrpouLoading, setEdrpouLoading] = useState(false)
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false)
+  const [objectPickerValue, setObjectPickerValue] = useState('')
   const qc = useQueryClient()
+
+  const { data: objectsData } = useQuery({
+    queryKey: ['objects-for-company-form'],
+    queryFn: () => objectsApi.list({ page_size: 200, sort_by: 'updated_at', sort_order: 'desc' }),
+    staleTime: 5 * 60_000,
+    enabled: open,
+  })
+
+  const objectsById = useMemo(
+    () => new Map((objectsData?.items ?? []).map((o) => [o.id, o])),
+    [objectsData],
+  )
+
+  const addedObjectIds = useMemo(
+    () => new Set(projects.map((p) => p.object_id).filter(Boolean) as string[]),
+    [projects],
+  )
+
+  const objectPickerOptions = useMemo(
+    () => (objectsData?.items ?? [])
+      .filter((o) => !addedObjectIds.has(o.id))
+      .map((o) => ({
+        value: o.id,
+        label: [o.name, o.city].filter(Boolean).join(' — '),
+      })),
+    [objectsData, addedObjectIds],
+  )
 
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   const setOpen = (v: boolean) => {
@@ -98,21 +154,55 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
       })
       setContacts((initialData.contacts ?? []).map(c => ({ ...EMPTY_CONTACT, ...c })))
       setProjects((initialData.projects ?? []).map(p => ({ ...EMPTY_PROJECT, ...p, photos: p.photos ?? [] })))
+      setObjectPickerValue('')
+
+      companiesApi.listObjects(initialData.id).then((linked) => {
+        const fromRegistry = linked.map((obj) => projectFromRegistryObject(obj))
+        setProjects((prev) => {
+          const existingIds = new Set(prev.map((p) => p.object_id).filter(Boolean))
+          const existingNames = new Set(prev.map((p) => p.object_name.trim().toLowerCase()).filter(Boolean))
+          const newOnes = fromRegistry.filter(
+            (p) => !existingIds.has(p.object_id!) && !existingNames.has(p.object_name.trim().toLowerCase()),
+          )
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev
+        })
+      }).catch(() => {})
     } else if (!open) {
       setForm(EMPTY_FORM)
       setContacts([])
       setProjects([])
       setAiResult(null)
+      setObjectPickerValue('')
     }
   }, [open, initialData])
 
   const mutation = useMutation({
-    mutationFn: (payload: CompanyCreatePayload) =>
-      isEditMode
-        ? companiesApi.update(initialData!.id, payload)
-        : companiesApi.create(payload),
-    onSuccess: () => {
+    mutationFn: async (payload: CompanyCreatePayload) => {
+      const company = isEditMode
+        ? await companiesApi.update(initialData!.id, payload)
+        : await companiesApi.create(payload)
+
+      const objectIds = [...new Set(
+        (payload.projects ?? [])
+          .map((p) => p.object_id)
+          .filter((id): id is string => !!id),
+      )]
+
+      await Promise.all(objectIds.map((id) => companiesApi.linkObject(company.id, id)))
+      return company
+    },
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['companies'] })
+      if (isEditMode) {
+        qc.invalidateQueries({ queryKey: ['company-objects', initialData!.id] })
+        qc.invalidateQueries({ queryKey: ['company', initialData!.id] })
+      }
+      const linkedIds = (variables.projects ?? [])
+        .map((p) => p.object_id)
+        .filter((id): id is string => !!id)
+      if (linkedIds.length > 0) {
+        qc.invalidateQueries({ queryKey: ['objects'] })
+      }
       setOpen(false)
     },
   })
@@ -128,6 +218,19 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
 
   // ── Projects helpers ────────────────────────────────────────────────────────
   const addProject = () => setProjects(p => [...p, { ...EMPTY_PROJECT }])
+  const addProjectFromObject = (obj: ConstructionObject) => {
+    if (addedObjectIds.has(obj.id)) return
+    setProjects((p) => [...p, projectFromRegistryObject(obj)])
+    setObjectPickerValue('')
+  }
+  const handleObjectPickerChange = (value: string) => {
+    const obj = objectsById.get(value)
+    if (obj) {
+      addProjectFromObject(obj)
+      return
+    }
+    setObjectPickerValue(value)
+  }
   const removeProject = (i: number) => setProjects(p => p.filter((_, idx) => idx !== i))
   const setProjectField = (i: number, field: keyof CompanyProject, value: string | string[]) =>
     setProjects(p => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item))
@@ -661,18 +764,42 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
 
               {/* ── Об'єкти ─────────────────────────────────────────────────── */}
               <TabsContent value="projects" className="space-y-3">
+                <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-4 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-brand-400" />
+                    <Label className="text-xs text-brand-400">Обрати з реєстру об&apos;єктів</Label>
+                  </div>
+                  <Combobox
+                    options={objectPickerOptions}
+                    value={objectPickerValue}
+                    onChange={handleObjectPickerChange}
+                    placeholder="Пошук об'єкта за назвою або містом..."
+                    emptyText="Об'єктів не знайдено"
+                  />
+                  <p className="text-[11px] text-zinc-500">
+                    Оберіть об&apos;єкт зі списку — поля заповняться автоматично
+                  </p>
+                </div>
+
                 {projects.length === 0 && (
-                  <p className="text-sm text-zinc-500 text-center py-6">
-                    Об&apos;єктів ще немає. Натисніть «+» щоб додати.
+                  <p className="text-sm text-zinc-500 text-center py-4">
+                    Об&apos;єктів ще немає. Оберіть з реєстру або додайте вручну.
                   </p>
                 )}
 
                 {projects.map((p, i) => (
-                  <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                  <div key={p.object_id ?? i} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                        Об&apos;єкт {i + 1}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                          Об&apos;єкт {i + 1}
+                        </span>
+                        {p.object_id && (
+                          <span className="text-[10px] font-medium text-brand-400 bg-brand-400/10 border border-brand-400/20 rounded px-1.5 py-0.5">
+                            З реєстру
+                          </span>
+                        )}
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
@@ -824,7 +951,7 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
                   className="w-full border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-200 gap-1.5"
                 >
                   <Plus className="h-4 w-4" />
-                  Додати об&apos;єкт
+                  Додати вручну
                 </Button>
               </TabsContent>
             </Tabs>

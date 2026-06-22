@@ -129,6 +129,7 @@ export interface CompanyContact {
 }
 
 export interface CompanyProject {
+  object_id?: string
   object_name: string
   address?: string
   queue: string
