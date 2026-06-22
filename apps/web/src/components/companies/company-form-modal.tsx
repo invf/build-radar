@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Sparkles, AlertTriangle, Trash2, Search, Loader2, Globe, X, Check, Link2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
+import { Plus, Sparkles, AlertTriangle, Trash2, Search, Loader2, Globe, X, Check, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,11 +19,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { companiesApi, type CompanyCreatePayload } from '@/lib/api/companies'
-import { objectsApi } from '@/lib/api/objects'
 import { aiEnrichApi, type CompanyEnrichResult, type WebEnrichResult } from '@/lib/api/ai-enrich'
 import { searchApi, type EdrpouCompany } from '@/lib/api/search'
-import { Combobox } from '@/components/ui/combobox'
-import type { Company, CompanyContact, CompanyProject, ConstructionObject } from '@/types'
+import { saveCompanyFormDraft, projectFromRegistryObject, type CompanyFormDraft } from '@/lib/company-form-draft'
+import type { Company, CompanyContact, CompanyProject } from '@/types'
 
 const COMPANY_ROLE_LABELS = {
   developer: 'Забудовник',
@@ -43,32 +43,6 @@ const EMPTY_PROJECT: CompanyProject = {
   object_name: '', address: '', queue: '', deadline: '', customer: '', contractor: '', installer: '', supplier: '', designer: '', notes: '', photos: [],
 }
 
-function projectFromRegistryObject(obj: {
-  id: string
-  name: string
-  address?: string
-  city?: string
-  photos?: string[]
-  customer?: string
-  general_contractor?: string
-  designer?: string
-  installer?: string
-  description?: string
-}): CompanyProject {
-  return {
-    ...EMPTY_PROJECT,
-    object_id: obj.id,
-    object_name: obj.name,
-    address: [obj.address, obj.city].filter(Boolean).join(', '),
-    photos: obj.photos ?? [],
-    customer: obj.customer ?? '',
-    contractor: obj.general_contractor ?? '',
-    designer: obj.designer ?? '',
-    installer: obj.installer ?? '',
-    notes: obj.description ?? '',
-  }
-}
-
 const EMPTY_FORM: CompanyCreatePayload = {
   name: '', edrpou: '', type: '', address: '',
   phone: '', email: '', website: '', description: '',
@@ -84,12 +58,14 @@ const CONFIDENCE_COLORS = {
 
 interface CompanyFormModalProps {
   initialData?: Company
+  initialDraft?: CompanyFormDraft
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
 
-export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChange }: CompanyFormModalProps = {}) {
+export function CompanyFormModal({ initialData, initialDraft, open: controlledOpen, onOpenChange }: CompanyFormModalProps = {}) {
   const isEditMode = !!initialData
+  const router = useRouter()
   const [internalOpen, setInternalOpen] = useState(false)
   const [form, setForm] = useState<CompanyCreatePayload>(EMPTY_FORM)
   const [contacts, setContacts] = useState<CompanyContact[]>([])
@@ -103,7 +79,7 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
   const [edrpouResults, setEdrpouResults] = useState<EdrpouCompany[]>([])
   const [edrpouLoading, setEdrpouLoading] = useState(false)
   const [showEdrpouDropdown, setShowEdrpouDropdown] = useState(false)
-  const [objectPickerValue, setObjectPickerValue] = useState('')
+  const [activeTab, setActiveTab] = useState<'main' | 'contacts' | 'projects'>('main')
   const qc = useQueryClient()
 
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
@@ -112,35 +88,25 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
     else setInternalOpen(v)
   }
 
-  const { data: objectsData } = useQuery({
-    queryKey: ['objects-for-company-form'],
-    queryFn: () => objectsApi.list({ page_size: 200, sort_by: 'updated_at', sort_order: 'desc' }),
-    staleTime: 5 * 60_000,
-    enabled: open,
-  })
-
-  const objectsById = useMemo(
-    () => new Map((objectsData?.items ?? []).map((o) => [o.id, o])),
-    [objectsData],
-  )
-
-  const addedObjectIds = useMemo(
-    () => new Set(projects.map((p) => p.object_id).filter(Boolean) as string[]),
-    [projects],
-  )
-
-  const objectPickerOptions = useMemo(
-    () => (objectsData?.items ?? [])
-      .filter((o) => !addedObjectIds.has(o.id))
-      .map((o) => ({
-        value: o.id,
-        label: [o.name, o.city].filter(Boolean).join(' — '),
-      })),
-    [objectsData, addedObjectIds],
-  )
-
   useEffect(() => {
-    if (open && initialData) {
+    if (!open) {
+      setForm(EMPTY_FORM)
+      setContacts([])
+      setProjects([])
+      setAiResult(null)
+      setActiveTab('main')
+      return
+    }
+
+    if (initialDraft) {
+      setForm({ ...EMPTY_FORM, ...initialDraft.form })
+      setContacts(initialDraft.contacts)
+      setProjects(initialDraft.projects.map((p) => ({ ...EMPTY_PROJECT, ...p, photos: p.photos ?? [] })))
+      setActiveTab(initialDraft.activeTab)
+      return
+    }
+
+    if (initialData) {
       setForm({
         name: initialData.name || '',
         edrpou: initialData.edrpou || '',
@@ -154,7 +120,6 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
       })
       setContacts((initialData.contacts ?? []).map(c => ({ ...EMPTY_CONTACT, ...c })))
       setProjects((initialData.projects ?? []).map(p => ({ ...EMPTY_PROJECT, ...p, photos: p.photos ?? [] })))
-      setObjectPickerValue('')
 
       companiesApi.listObjects(initialData.id).then((linked) => {
         const fromRegistry = linked.map((obj) => projectFromRegistryObject(obj))
@@ -167,14 +132,8 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
           return newOnes.length > 0 ? [...prev, ...newOnes] : prev
         })
       }).catch(() => {})
-    } else if (!open) {
-      setForm(EMPTY_FORM)
-      setContacts([])
-      setProjects([])
-      setAiResult(null)
-      setObjectPickerValue('')
     }
-  }, [open, initialData])
+  }, [open, initialData, initialDraft])
 
   const mutation = useMutation({
     mutationFn: async (payload: CompanyCreatePayload) => {
@@ -218,18 +177,27 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
 
   // ── Projects helpers ────────────────────────────────────────────────────────
   const addProject = () => setProjects(p => [...p, { ...EMPTY_PROJECT }])
-  const addProjectFromObject = (obj: ConstructionObject) => {
-    if (addedObjectIds.has(obj.id)) return
-    setProjects((p) => [...p, projectFromRegistryObject(obj)])
-    setObjectPickerValue('')
-  }
-  const handleObjectPickerChange = (value: string) => {
-    const obj = objectsById.get(value)
-    if (obj) {
-      addProjectFromObject(obj)
-      return
-    }
-    setObjectPickerValue(value)
+  const handleGoPickObjects = () => {
+    saveCompanyFormDraft({
+      form: {
+        name: form.name,
+        edrpou: form.edrpou,
+        type: form.type,
+        address: form.address,
+        phone: form.phone,
+        email: form.email,
+        website: form.website,
+        description: form.description,
+        logo_url: form.logo_url,
+      },
+      contacts,
+      projects,
+      companyId: initialData?.id,
+      isEditMode,
+      activeTab: 'projects',
+    })
+    setOpen(false)
+    router.push('/objects?pickFor=company')
   }
   const removeProject = (i: number) => setProjects(p => p.filter((_, idx) => idx !== i))
   const setProjectField = (i: number, field: keyof CompanyProject, value: string | string[]) =>
@@ -350,7 +318,7 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="mt-2">
-            <Tabs defaultValue="main" className="w-full">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'main' | 'contacts' | 'projects')} className="w-full">
               <TabsList className="w-full mb-4">
                 <TabsTrigger value="main" className="flex-1">Основне</TabsTrigger>
                 <TabsTrigger value="contacts" className="flex-1">
@@ -764,21 +732,23 @@ export function CompanyFormModal({ initialData, open: controlledOpen, onOpenChan
 
               {/* ── Об'єкти ─────────────────────────────────────────────────── */}
               <TabsContent value="projects" className="space-y-3">
-                <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-4 space-y-2">
-                  <div className="flex items-center gap-1.5">
-                    <Link2 className="h-3.5 w-3.5 text-brand-400" />
-                    <Label className="text-xs text-brand-400">Обрати з реєстру об&apos;єктів</Label>
+                <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-brand-300">Обрати з реєстру об&apos;єктів</p>
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      Перейдіть на сторінку об&apos;єктів і виберіть картки з уже завантажених
+                    </p>
                   </div>
-                  <Combobox
-                    options={objectPickerOptions}
-                    value={objectPickerValue}
-                    onChange={handleObjectPickerChange}
-                    placeholder="Пошук об'єкта за назвою або містом..."
-                    emptyText="Об'єктів не знайдено"
-                  />
-                  <p className="text-[11px] text-zinc-500">
-                    Оберіть об&apos;єкт зі списку — поля заповняться автоматично
-                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGoPickObjects}
+                    className="w-full gap-2 border-brand-500/40 text-brand-300 hover:text-brand-200 hover:bg-brand-500/10"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Відкрити сторінку об&apos;єктів
+                  </Button>
                 </div>
 
                 {projects.length === 0 && (

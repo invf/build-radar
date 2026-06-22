@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Search, List, Map as MapIcon, Download, SortAsc,
@@ -16,6 +16,7 @@ import { FiltersPanel } from '@/components/objects/filters-panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { objectsApi } from '@/lib/api/objects'
+import { peekCompanyFormDraft, savePickedObjects } from '@/lib/company-form-draft'
 import { useFiltersStore } from '@/stores/filters'
 import Link from 'next/link'
 import { cn } from '@/lib/utils/cn'
@@ -201,8 +202,11 @@ function ObjectQuickViewModal({
 
 function ObjectsPageInner() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pickForCompany = searchParams.get('pickFor') === 'company'
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
+  const [selectedObjects, setSelectedObjects] = useState<Map<string, ConstructionObject>>(new Map())
 
   useEffect(() => {
     const q = searchParams.get('search')
@@ -218,6 +222,25 @@ function ObjectsPageInner() {
   const [showOsmPanel, setShowOsmPanel] = useState(false)
   const { filters } = useFiltersStore()
   const qc = useQueryClient()
+
+  const alreadyAddedIds = useMemo(() => {
+    const draft = peekCompanyFormDraft()
+    return new Set(
+      (draft?.projects ?? [])
+        .map((p) => p.object_id)
+        .filter((id): id is string => !!id),
+    )
+  }, [pickForCompany])
+
+  const toggleSelection = (obj: ConstructionObject) => {
+    if (alreadyAddedIds.has(obj.id)) return
+    setSelectedObjects((prev) => {
+      const next = new Map(prev)
+      if (next.has(obj.id)) next.delete(obj.id)
+      else next.set(obj.id, obj)
+      return next
+    })
+  }
 
   // Activate AI mode from global search (?ai= URL param)
   useEffect(() => {
@@ -302,18 +325,58 @@ function ObjectsPageInner() {
     URL.revokeObjectURL(url)
   }
 
+  const handlePickCancel = () => {
+    router.push('/companies?resumeCompanyForm=1')
+  }
+
+  const handlePickConfirm = () => {
+    const selected = Array.from(selectedObjects.values())
+    if (selected.length === 0) return
+    savePickedObjects(selected.map((o) => ({
+      id: o.id,
+      name: o.name,
+      address: o.address,
+      city: o.city,
+      photos: o.photos,
+      customer: o.customer,
+      general_contractor: o.general_contractor,
+      designer: o.designer,
+      installer: o.installer,
+      description: o.description,
+    })))
+    router.push('/companies?resumeCompanyForm=1')
+  }
+
+  const selectedCount = selectedObjects.size
+
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in">
+    <div className={cn('p-4 md:p-6 space-y-4 md:space-y-5 animate-fade-in', pickForCompany && 'pb-28')}>
+      {pickForCompany && (
+        <div className="rounded-xl border border-brand-500/40 bg-brand-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-brand-300">Вибір об&apos;єктів для компанії</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Натисніть на картки об&apos;єктів, щоб додати їх до компанії</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handlePickCancel} className="border-zinc-700 shrink-0">
+            Скасувати
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Будівельні об&apos;єкти</h1>
+          <h1 className="text-xl font-semibold text-zinc-100">
+            {pickForCompany ? 'Оберіть об\'єкти' : 'Будівельні об\'єкти'}
+          </h1>
           <p className="text-sm text-zinc-500 mt-0.5">
             {data?.total ? `${data.total.toLocaleString('uk-UA')} об'єктів` : 'Завантаження...'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {!pickForCompany && (
+          <>
           <Button
             variant="outline"
             size="sm"
@@ -368,6 +431,8 @@ function ObjectsPageInner() {
               </Button>
             </Link>
           </div>
+          </>
+          )}
         </div>
       </div>
 
@@ -477,10 +542,14 @@ function ObjectsPageInner() {
                 key={obj.id}
                 object={obj}
                 isFavorite={favoriteIds.has(obj.id)}
-                onFavorite={(id) => favoriteMutation.mutate(id)}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onQuickView={(o) => setQuickViewObj(o)}
+                onFavorite={pickForCompany ? undefined : (id) => favoriteMutation.mutate(id)}
+                onEdit={pickForCompany ? undefined : handleEdit}
+                onDelete={pickForCompany ? undefined : handleDelete}
+                onQuickView={pickForCompany ? undefined : (o) => setQuickViewObj(o)}
+                selectable={pickForCompany}
+                selected={selectedObjects.has(obj.id)}
+                selectionDisabled={alreadyAddedIds.has(obj.id)}
+                onSelectToggle={toggleSelection}
               />
             ))}
           </div>
@@ -521,12 +590,32 @@ function ObjectsPageInner() {
         </>
       )}
 
-      {quickViewObj && (
+      {quickViewObj && !pickForCompany && (
         <ObjectQuickViewModal
           obj={quickViewObj}
           onClose={() => setQuickViewObj(null)}
           onEdit={() => { setQuickViewObj(null); handleEdit(quickViewObj) }}
         />
+      )}
+
+      {pickForCompany && (
+        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-3">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+            <p className="text-sm text-zinc-400">
+              {selectedCount > 0
+                ? `Обрано: ${selectedCount}`
+                : 'Оберіть один або кілька об\'єктів'}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handlePickCancel} className="border-zinc-700">
+                Скасувати
+              </Button>
+              <Button size="sm" onClick={handlePickConfirm} disabled={selectedCount === 0}>
+                Додати вибрані{selectedCount > 0 ? ` (${selectedCount})` : ''}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

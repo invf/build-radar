@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Building, Search, ExternalLink, Pencil, Trash2, Globe } from 'lucide-react'
 import Link from 'next/link'
 import { companiesApi } from '@/lib/api/companies'
@@ -13,6 +13,12 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Company, CompanyRole, RelationshipStatus } from '@/types'
 import { CompanyFormModal } from '@/components/companies/company-form-modal'
+import {
+  popCompanyFormDraft,
+  popPickedObjects,
+  mergePickedIntoProjects,
+  type CompanyFormDraft,
+} from '@/lib/company-form-draft'
 
 const RELATIONSHIP_OPTIONS: { value: RelationshipStatus | ''; label: string }[] = [
   { value: '', label: 'Відносини...' },
@@ -180,8 +186,28 @@ function CompanyCard({
   )
 }
 
+function companyFromDraft(draft: CompanyFormDraft): Company {
+  return {
+    id: draft.companyId ?? '',
+    name: draft.form.name,
+    edrpou: draft.form.edrpou ?? '',
+    type: (draft.form.type || 'developer') as CompanyRole,
+    address: draft.form.address,
+    phone: draft.form.phone,
+    email: draft.form.email,
+    website: draft.form.website,
+    description: draft.form.description,
+    logo_url: draft.form.logo_url,
+    contacts: draft.contacts,
+    projects: draft.projects,
+    created_at: '',
+    updated_at: '',
+  }
+}
+
 function CompaniesPageInner() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [type, setType] = useState<string>('all')
 
@@ -192,7 +218,36 @@ function CompaniesPageInner() {
   const [page, setPage] = useState(1)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [resumeDraft, setResumeDraft] = useState<CompanyFormDraft | null>(null)
   const qc = useQueryClient()
+
+  useEffect(() => {
+    if (searchParams.get('resumeCompanyForm') !== '1') return
+
+    let draft = popCompanyFormDraft()
+    if (!draft) return
+
+    const picked = popPickedObjects()
+    if (picked?.length) {
+      draft = {
+        ...draft,
+        projects: mergePickedIntoProjects(draft.projects, picked),
+        activeTab: 'projects',
+      }
+    }
+
+    setResumeDraft(draft)
+
+    if (draft.isEditMode && draft.companyId) {
+      setEditingCompany(companyFromDraft(draft))
+      setEditModalOpen(true)
+    } else {
+      setCreateModalOpen(true)
+    }
+
+    router.replace('/companies')
+  }, [searchParams, router])
 
   const { data, isLoading } = useQuery({
     queryKey: ['companies', search, type, page],
@@ -225,7 +280,15 @@ function CompaniesPageInner() {
 
   const handleEditModalChange = (open: boolean) => {
     setEditModalOpen(open)
-    if (!open) setEditingCompany(null)
+    if (!open) {
+      setEditingCompany(null)
+      setResumeDraft(null)
+    }
+  }
+
+  const handleCreateModalChange = (open: boolean) => {
+    setCreateModalOpen(open)
+    if (!open) setResumeDraft(null)
   }
 
   return (
@@ -237,13 +300,18 @@ function CompaniesPageInner() {
             {data?.total ? `${data.total.toLocaleString('uk-UA')} компаній` : 'Завантаження...'}
           </p>
         </div>
-        <CompanyFormModal />
+        <CompanyFormModal
+          open={createModalOpen}
+          onOpenChange={handleCreateModalChange}
+          initialDraft={resumeDraft && !resumeDraft.isEditMode ? resumeDraft : undefined}
+        />
       </div>
 
       {/* Edit modal (edit mode, no trigger button) */}
       {editingCompany && (
         <CompanyFormModal
           initialData={editingCompany}
+          initialDraft={resumeDraft?.isEditMode ? resumeDraft : undefined}
           open={editModalOpen}
           onOpenChange={handleEditModalChange}
         />

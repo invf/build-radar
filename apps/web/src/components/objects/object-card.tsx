@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Map, Building2, Star, ShoppingCart, Zap, Pencil, Trash2, Globe, HardHat } from 'lucide-react'
+import { MapPin, Map, Building2, Star, ShoppingCart, Zap, Pencil, Trash2, Globe, HardHat, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -21,6 +21,10 @@ interface ObjectCardProps {
   onEdit?: (obj: ConstructionObject) => void
   onDelete?: (id: string) => void
   onQuickView?: (obj: ConstructionObject) => void
+  selectable?: boolean
+  selected?: boolean
+  selectionDisabled?: boolean
+  onSelectToggle?: (obj: ConstructionObject) => void
   className?: string
 }
 
@@ -33,18 +37,39 @@ const CATEGORY_EMOJI: Record<string, string> = {
   mixed: '🏗️',
 }
 
-export function ObjectCard({ object, onFavorite, isFavorite, onEdit, onDelete, onQuickView, className }: ObjectCardProps) {
+export function ObjectCard({
+  object, onFavorite, isFavorite, onEdit, onDelete, onQuickView,
+  selectable, selected, selectionDisabled, onSelectToggle, className,
+}: ObjectCardProps) {
   const mainPhoto = object.photos?.[0]
 
+  const handleCardClick = () => {
+    if (selectable && !selectionDisabled) {
+      onSelectToggle?.(object)
+      return
+    }
+    onQuickView?.(object)
+  }
+
   return (
-    <div className={cn(
-      'group rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900 transition-all overflow-hidden',
-      className
-    )}>
-      {/* Photo header — клік відкриває попап, якщо є onQuickView */}
+    <div
+      className={cn(
+        'group rounded-xl border bg-zinc-900/50 transition-all overflow-hidden',
+        selectable && !selectionDisabled && 'cursor-pointer hover:border-zinc-700 hover:bg-zinc-900',
+        selectable && selected && 'border-brand-500 ring-2 ring-brand-500/30 bg-brand-500/5',
+        selectable && selectionDisabled && 'opacity-50 cursor-not-allowed border-zinc-800',
+        !selectable && 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900',
+        className,
+      )}
+      onClick={selectable ? handleCardClick : undefined}
+    >
+      {/* Photo header */}
       <div
-        className="block relative w-full h-36 bg-zinc-800 cursor-pointer"
-        onClick={() => onQuickView ? onQuickView(object) : undefined}
+        className={cn(
+          'block relative w-full h-36 bg-zinc-800',
+          !selectable && onQuickView && 'cursor-pointer',
+        )}
+        onClick={!selectable && onQuickView ? () => onQuickView(object) : undefined}
       >
         {mainPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -55,7 +80,18 @@ export function ObjectCard({ object, onFavorite, isFavorite, onEdit, onDelete, o
           </div>
         )}
 
+        {selectable && (
+          <div className={cn(
+            'absolute top-2 left-2 h-6 w-6 rounded-md border flex items-center justify-center transition-colors',
+            selected ? 'bg-brand-500 border-brand-400 text-white' : 'bg-black/60 border-zinc-500 text-transparent',
+            selectionDisabled && 'bg-zinc-700 border-zinc-600',
+          )}>
+            <Check className="h-3.5 w-3.5" />
+          </div>
+        )}
+
         {/* Action buttons overlay */}
+        {!selectable && (
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {onEdit && (
             <button
@@ -84,16 +120,23 @@ export function ObjectCard({ object, onFavorite, isFavorite, onEdit, onDelete, o
             </button>
           )}
         </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="p-3 space-y-2">
         {/* Name */}
+        {selectable ? (
+          <h3 className="font-medium text-zinc-200 text-sm leading-tight line-clamp-2">
+            {object.name}
+          </h3>
+        ) : (
         <Link href={`/objects/${object.id}`}>
           <h3 className="font-medium text-zinc-200 hover:text-zinc-100 text-sm leading-tight line-clamp-2">
             {object.name}
           </h3>
         </Link>
+        )}
 
         {/* Address + Map */}
         <div className="flex items-center gap-1">
